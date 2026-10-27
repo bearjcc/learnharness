@@ -7,6 +7,7 @@ import { WIKIMEDIA_USER_AGENT, fetchWithRetry } from "../../../practice/wikimedi
 import { readSourceCache, writeSourceCache, type SourceChunkRecord } from "../../../store/practice-sources.ts";
 import { chunkText } from "./chunk-text.ts";
 import { fetchWikipediaParseRows } from "./wikipedia-parse.ts";
+import { builtinGroovesCorpusText } from "../../../practice/grooves/library.ts";
 import { pdfExtract } from "../../../agent/subagents/pdf-ops.ts";
 import fsPromises from "node:fs/promises";
 
@@ -63,13 +64,7 @@ function loadBuiltinText(builtinId: string): { url: string; title: string; text:
 		};
 	}
 	if (builtinId === "grooves") {
-		const dir = path.join(ROOT, "samples", "grooves");
-		const files = fs.readdirSync(dir).filter((f) => f.endsWith(".abc"));
-		const parts = files.map((f) => {
-			const abc = fs.readFileSync(path.join(dir, f), "utf-8");
-			return `Groove ${f.replace(/\.abc$/, "")}:\n${abc}`;
-		});
-		return { url: "builtin://grooves", title: "Groove ABC library", text: parts.join("\n\n") };
+		return { url: "builtin://grooves", title: "Curated groove library", text: builtinGroovesCorpusText() };
 	}
 	if (builtinId === "latin-phrases") {
 		return {

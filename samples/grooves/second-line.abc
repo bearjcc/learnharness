@@ -1,0 +1,12 @@
+X:1
+M:4/4
+L:1/8
+K:perc
+%%percmap B 36 normal
+%%percmap c 38 normal
+%%percmap g 42 x
+%%score (1 2)
+V:1
+g z g z g z g z |
+V:2
+B z c z z c c z |
