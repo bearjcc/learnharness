@@ -1,16 +1,13 @@
 import type { ItemKindPlugin } from "./types.ts";
 import { baseItem, fourDistinct } from "./shared.ts";
 import type { PracticeEntry } from "../../core/practice/contracts.ts";
-
-function imageToken(entry: PracticeEntry): string | null {
-	if (!entry.media || entry.media.kind === "audio") return null;
-	return entry.media.ref;
-}
+import { assertConsistentMediaVariant } from "../../core/practice/media-variants.ts";
+import { imageTokenForEntry, visualEntryHasImage } from "./visual-media.ts";
 
 /** Reverse of image-pick: image prompt, four text labels. */
 export const labelPickKind: ItemKindPlugin = {
 	kind: "label-pick",
-	appliesTo: (e) => e.type === "visual" && !!imageToken(e),
+	appliesTo: (e) => e.type === "visual" && visualEntryHasImage(e),
 	modelSchema: {
 		type: "object",
 		properties: { explain: { type: "string" } },
@@ -22,8 +19,10 @@ export const labelPickKind: ItemKindPlugin = {
 			user: `Image shows: ${entry.front}. Labels: ${[entry.front, ...options.map((o) => o.front)].join(" | ")}`,
 		};
 	},
-	assemble(entry, optionEntries, model) {
-		const token = imageToken(entry);
+	assemble(entry, optionEntries, model, ctx) {
+		const mediaVariant = ctx?.mediaVariant;
+		if (!mediaVariant) return null;
+		const token = imageTokenForEntry(entry, mediaVariant);
 		if (!token) return null;
 		const all = [entry, ...optionEntries];
 		if (!fourDistinct(all)) return null;
@@ -37,17 +36,25 @@ export const labelPickKind: ItemKindPlugin = {
 			[{ type: "image", token }],
 			options,
 			model?.explain,
+			mediaVariant,
 		);
 	},
 	check(item, source, ctx) {
 		const errors: string[] = [];
+		if (!item.mediaVariant) errors.push("missing mediaVariant");
 		if (item.correctOptionId !== source.entryId) errors.push("wrong correct");
 		if (item.options.length !== 4) errors.push("need 4");
+		const variant = item.mediaVariant;
 		const img = item.prompt.find((p) => p.type === "image");
 		if (!img || !ctx.mediaFileExists(img.token)) errors.push("prompt image missing");
+		if (variant) {
+			const expected = imageTokenForEntry(source, variant);
+			if (expected && img && img.token !== expected) errors.push("prompt image variant mismatch");
+		}
 		for (const opt of item.options) {
 			if (opt.type !== "text" || !ctx.entriesById.has(opt.id)) errors.push("bad text option");
 		}
+		errors.push(...assertConsistentMediaVariant(item, ctx));
 		return { ok: errors.length === 0, errors };
 	},
 };

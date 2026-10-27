@@ -16,6 +16,7 @@ export interface ItemKindPlugin {
 		entry: PracticeEntry,
 		optionEntries: PracticeEntry[],
 		model?: { prompt?: string; explain?: string },
+		ctx?: { mediaVariant: string },
 	): PracticeDailyItem | null;
 	check(item: PracticeDailyItem, source: PracticeEntry, ctx: KindCheckContext): { ok: boolean; errors: string[] };
 }

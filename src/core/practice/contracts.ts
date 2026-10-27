@@ -27,6 +27,19 @@ export interface PracticeMediaRef {
 	attribution?: PracticeMediaAttribution;
 }
 
+/** Named visual style for an entry (e.g. outline, locator). */
+export type PracticeMediaVariantMap = Record<string, PracticeMediaRef>;
+
+/** Per-subject mix of media variants for image-based items. */
+export interface PracticeMediaVariantConfig {
+	/** Variant keys enabled for this subject (e.g. `outline`, `locator`). */
+	enabled: string[];
+	/** Relative weights; omitted keys default to 1. */
+	weights?: Record<string, number>;
+	/** Optional distractor bias for visual entries. */
+	distractorBias?: "tags" | "similar-size" | "similar-shape";
+}
+
 export interface PracticeFsrsState {
 	due: string;
 	stability: number;
@@ -46,6 +59,10 @@ export interface PracticeSubject {
 	/** Target count for the daily build. */
 	dailyCards: number;
 	itemKinds: string[];
+	/** Enabled media variant keys and mix weights for visual pick items. */
+	mediaVariants?: PracticeMediaVariantConfig;
+	/** Sandbox deck: no FSRS, stats, or graph; full deck served on every today fetch. */
+	sandbox?: boolean;
 	/** Built queue served to Choice (ISO date + items). */
 	dailyQueueDate?: string;
 	dailyQueue?: PracticeDailyItem[];
@@ -59,7 +76,10 @@ export interface PracticeEntry {
 	back: string;
 	aliases?: string[];
 	tags?: string[];
+	/** Legacy single asset; treated as variant `default` when `variants` is omitted. */
 	media?: PracticeMediaRef;
+	/** Named media assets (outline, locator, …). */
+	variants?: PracticeMediaVariantMap;
 	origin: PracticeEntryOrigin;
 	propositionId?: string;
 	status: PracticeEntryStatus;
@@ -77,6 +97,8 @@ export interface PracticeDailyItem {
 	options: PracticeOptionPart[];
 	explain?: string;
 	tags?: string[];
+	/** Media variant used for all images in this item (image-pick / label-pick). */
+	mediaVariant?: string;
 }
 
 export type PracticeRenderPart =
@@ -133,6 +155,7 @@ export interface PracticeImportEntry {
 	aliases?: string[];
 	tags?: string[];
 	media?: PracticeMediaRef;
+	variants?: PracticeMediaVariantMap;
 	/** Fetch and cache from Wikimedia Commons / Wikipedia. */
 	commons?: { pageTitle: string };
 }

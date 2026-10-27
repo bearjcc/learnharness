@@ -18,6 +18,7 @@ export async function PUT(request: Request) {
 		enabled: body.enabled ?? true,
 		dailyCards: body.dailyCards ?? 10,
 		itemKinds: Array.isArray(body.itemKinds) ? body.itemKinds : [],
+		...(body.mediaVariants ? { mediaVariants: body.mediaVariants } : {}),
 	});
 	return Response.json({ subjects: readSubjects() });
 }
