@@ -18,6 +18,18 @@ const DATA_ROOT = process.env.LH_DATA_DIR
 	? path.resolve(process.env.LH_DATA_DIR)
 	: path.join(ROOT, "data");
 
+/** Practice quiz engine (Choice app): subjects, entries, daily cards, media. */
+export const PRACTICE_DIR = path.join(DATA_ROOT, "practice");
+
+export const PRACTICE_FILES = {
+	subjects: path.join(PRACTICE_DIR, "subjects.json"),
+	entries: path.join(PRACTICE_DIR, "entries.jsonl"),
+	answerEvents: path.join(PRACTICE_DIR, "answer-events.jsonl"),
+	entryDecisions: path.join(PRACTICE_DIR, "entry-decisions.jsonl"),
+	dailyRuns: path.join(PRACTICE_DIR, "daily-runs.jsonl"),
+	mediaDir: path.join(PRACTICE_DIR, "media"),
+} as const;
+
 export const PATHS = {
 	root: ROOT,
 	/** Teacher system prompt — the agent's instructions (src/agent/). */

@@ -46,5 +46,7 @@ export { runPiTurn, piTurnResponse, type PiTurnHandle, type PiTurnSpec } from ".
 export * from "./observability.ts";
 export * from "./model-catalog.ts";
 export * from "./local-inference.ts";
+export * from "./practice/service.ts";
+export { runDailyBuildAll } from "./practice/daily-build.ts";
 export { subscriptionControlsResponse, subscriptionBrowserResponse } from "./web-subscription-http.ts";
 export { sessionCost } from "./pricing.ts";
