@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { PRACTICE_FILES } from "../config.ts";
+import { assertGrooveBarsFitMeter } from "../src/practice/grooves/abc-meter.ts";
 import { CURATED_GROOVE_LIBRARY, readGrooveAbc } from "../src/practice/grooves/library.ts";
 import { renderGrooveAbcToSvg } from "../src/practice/groove-render.ts";
 import { selectDistractors } from "../src/core/practice/distractors.ts";
@@ -32,6 +33,13 @@ describe("curated groove library", () => {
 		if (prev === undefined) delete process.env.LH_DATA_DIR;
 		else process.env.LH_DATA_DIR = prev;
 		fs.rmSync(tmp, { recursive: true, force: true });
+	});
+
+	it("every groove voice fills each bar to the written meter", () => {
+		for (const def of CURATED_GROOVE_LIBRARY) {
+			const abc = readGrooveAbc(def);
+			assertGrooveBarsFitMeter(abc);
+		}
 	});
 
 	it("every groove renders to distinct SVG hash and ABC note content", () => {

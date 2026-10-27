@@ -5,8 +5,9 @@ K:perc
 %%percmap B 36 normal
 %%percmap c 38 normal
 %%percmap g 42 x
+%%percmap d 39 normal
 %%score (1 2)
 V:1
-g z g z g z g z |
+z g z g z g z g |
 V:2
-B z z z z z c z |
+z z z z [Bd] z z z |

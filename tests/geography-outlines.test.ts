@@ -36,7 +36,7 @@ describe("geography outlines", () => {
 		const inner = GEO_TILE_PX - 16;
 		const pathMatch = locator.match(/fill="#1a1a1a"[^>]+d="([^"]+)"/);
 		assert.ok(pathMatch);
-		const nums = pathMatch[1].match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
+		const nums = pathMatch![1]!.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? [];
 		const xs = nums.filter((_, i) => i % 2 === 0);
 		const minX = Math.min(...xs);
 		const maxX = Math.max(...xs);

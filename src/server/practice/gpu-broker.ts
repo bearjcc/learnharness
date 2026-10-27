@@ -27,7 +27,9 @@ function releasePath(id: string): string {
 }
 
 /** Lease POST body for Dunce GPU broker (snake_case per broker API). */
-export function buildGpuBrokerLeaseBody(env: NodeJS.ProcessEnv = process.env): Record<string, unknown> {
+export function buildGpuBrokerLeaseBody(
+	env: Record<string, string | undefined> = process.env,
+): Record<string, unknown> {
 	const service = env.LH_GPU_BROKER_SERVICE?.trim() || DEFAULT_LEASE_BODY.service;
 	const vram_gb = Number(env.LH_GPU_BROKER_VRAM_GB) || DEFAULT_LEASE_BODY.vram_gb;
 	return {
