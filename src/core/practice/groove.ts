@@ -5,14 +5,14 @@ const ABC_INSTRUMENT: Record<string, string> = {
 	kick: "B",
 	bass: "B",
 	bassdrum: "B",
-	snare: "S",
+	snare: "c",
 	hihat: "g",
 	"hi-hat": "g",
 	hat: "g",
 };
 
-const ABC_HEADER = `%%percmap B 35 normal
-%%percmap S 38 normal
+const ABC_HEADER = `%%percmap B 36 normal
+%%percmap c 38 normal
 %%percmap g 42 x
 `;
 

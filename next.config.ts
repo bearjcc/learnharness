@@ -96,6 +96,9 @@ const nextConfig: NextConfig = {
 			"node_modules/gcp-metadata/**/*",
 			"node_modules/json-bigint/**/*",
 			"node_modules/bignumber.js/**/*",
+			// Practice geography: atlas JSON is imported statically but keep a trace copy for standalone.
+			"node_modules/world-atlas/**/*.json",
+			"node_modules/world-countries/data/**/*",
 		],
 	},
 	// Framework-free core lives in src/ (plain TS, imported by routes and CLI alike).

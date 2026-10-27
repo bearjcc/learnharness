@@ -1,10 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { feature } from "topojson-client";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
 import worldCountries from "world-countries";
 import type { Topology } from "topojson-specification";
+import countries10m from "world-atlas/countries-10m.json" with { type: "json" };
+import countries50m from "world-atlas/countries-50m.json" with { type: "json" };
 
 export interface CountryRecord {
 	isoA3: string;
@@ -12,9 +11,6 @@ export interface CountryRecord {
 	nameNative: string;
 	geometry: Geometry;
 }
-
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const ATLAS_DIR = path.resolve(ROOT, "../../../node_modules/world-atlas");
 
 const NAME_ALIASES: Record<string, string> = {
 	"Czechia": "Czech Republic",
@@ -28,12 +24,7 @@ const NAME_ALIASES: Record<string, string> = {
 	"W. Sahara": "Western Sahara",
 };
 
-function loadTopology(file: string): Topology {
-	return JSON.parse(fs.readFileSync(path.join(ATLAS_DIR, file), "utf-8")) as Topology;
-}
-
-function featuresFrom(file: string): Feature[] {
-	const topo = loadTopology(file);
+function featuresFrom(topo: Topology): Feature[] {
 	const obj = topo.objects.countries;
 	if (!obj) return [];
 	const fc = feature(topo, obj) as unknown as FeatureCollection;
@@ -79,8 +70,8 @@ let worldCache: FeatureCollection | null = null;
 
 export function loadWorldFeatureCollection(): FeatureCollection {
 	if (worldCache) return worldCache;
-	const f50 = byIso(featuresFrom("countries-50m.json"));
-	const f10 = byIso(featuresFrom("countries-10m.json"));
+	const f50 = byIso(featuresFrom(countries50m as Topology));
+	const f10 = byIso(featuresFrom(countries10m as Topology));
 	for (const [iso, feat] of f10) {
 		if (!f50.has(iso)) f50.set(iso, feat);
 	}
