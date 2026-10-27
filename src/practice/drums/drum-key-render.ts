@@ -15,11 +15,17 @@ const NOTE_RE =
 
 export function inspectDrumKeyRender(svg: string): DrumKeyRenderedNote {
 	const match = svg.match(NOTE_RE);
-	if (!match) throw new Error("drum_key_render: no note in SVG");
-	const staffPosition = Number(match[1].match(/abcjs-p(\d+)/)?.[1]);
+	const noteClass = match?.[1];
+	const pitchToken = match?.[2];
+	const pathD = match?.[3];
+	if (!noteClass || pitchToken === undefined || pathD === undefined) {
+		throw new Error("drum_key_render: no note in SVG");
+	}
+	const staffDigits = noteClass.match(/abcjs-p(\d+)/)?.[1];
+	const staffPosition = staffDigits === undefined ? Number.NaN : Number(staffDigits);
 	if (!Number.isFinite(staffPosition)) throw new Error("drum_key_render: missing abcjs-p class");
-	const headPathHash = createHash("sha1").update(match[3]).digest("hex");
-	return { pitchToken: match[2], staffPosition, headPathHash };
+	const headPathHash = createHash("sha1").update(pathD).digest("hex");
+	return { pitchToken, staffPosition, headPathHash };
 }
 
 export function renderDrumKeyVoice(abc: string, widthPx = 160): DrumKeyRenderedNote {
