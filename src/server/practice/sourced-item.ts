@@ -5,6 +5,11 @@ import type {
 } from "../../core/practice/contracts.ts";
 import { isTopicHintEntry } from "../../core/practice/topic-hint.ts";
 import { quoteAppearsInChunks, parseJudgeYesNo } from "../../core/practice/sources/verify.ts";
+import {
+	answerSupportedByQuote,
+	promptClaimsAllowed,
+	quoteMatchesTopic,
+} from "../../core/practice/sources/claims.ts";
 import { practiceStore } from "../../store/practice.ts";
 import { appendSourcedBuildLog } from "../../store/practice-sources.ts";
 import { completeLocalJsonDetailed, completeLocalJson } from "./local-complete.ts";
@@ -12,25 +17,12 @@ import { buildItemForEntry } from "./engine.ts";
 import { ensureSubjectSourcesCached } from "./sources/ingest.ts";
 import { retrievePassages } from "./sources/retrieve.ts";
 import type { SourceChunkRecord } from "../../store/practice-sources.ts";
+import { verifyEntryIdentity } from "./entry-verify.ts";
 
-const WRITER_SCHEMA = {
+const FACT_PROMPT_SCHEMA = {
 	type: "object",
-	properties: {
-		prompt: { type: "string" },
-		answer: { type: "string" },
-		explain: { type: "string" },
-		citation: {
-			type: "object",
-			properties: {
-				sourceId: { type: "string" },
-				url: { type: "string" },
-				quote: { type: "string" },
-			},
-			required: ["sourceId", "quote"],
-			additionalProperties: false,
-		},
-	},
-	required: ["prompt", "answer", "citation"],
+	properties: { prompt: { type: "string" } },
+	required: ["prompt"],
 	additionalProperties: false,
 } as const;
 
@@ -38,9 +30,15 @@ export function subjectUsesSourcing(subject: PracticeSubject): boolean {
 	return Boolean(subject.sources?.length) && subject.requireReview !== true;
 }
 
-async function judgeSupports(
+function defaultJudgeModel(subject: PracticeSubject): string {
+	return subject.judgeModel ?? "koda";
+}
+
+async function judgeFactPick(
 	modelId: string,
+	question: string,
 	answer: string,
+	options: string[],
 	quote: string,
 	fetchImpl?: typeof fetch,
 ): Promise<boolean> {
@@ -50,11 +48,11 @@ async function judgeSupports(
 			{
 				role: "system",
 				content:
-					"You verify quiz citations. Reply with JSON {\"verdict\":\"yes\"} only if the quote directly supports the answer; otherwise {\"verdict\":\"no\"}.",
+					"You verify quiz citations. Reply JSON {\"verdict\":\"yes\"} only if the quote alone is sufficient for a reader to pick the correct answer and no other listed option is equally supported by the quote; otherwise {\"verdict\":\"no\"}.",
 			},
 			{
 				role: "user",
-				content: `Answer: ${answer}\nQuote: ${quote}`,
+				content: `Question: ${question}\nAnswer: ${answer}\nOptions: ${options.join(" | ")}\nQuote: ${quote}`,
 			},
 		],
 		{
@@ -75,7 +73,23 @@ function cardSourceFromChunk(chunk: SourceChunkRecord | undefined, url?: string)
 	return { url: u, label: chunk?.title ?? chunk?.sourceId ?? "Source" };
 }
 
-export async function trySourcedItemForEntry(
+function validCitationSourceId(sourceId: string, passages: SourceChunkRecord[]): boolean {
+	return passages.some((p) => p.sourceId === sourceId);
+}
+
+export async function ensureSourcedEntryReady(
+	subject: PracticeSubject,
+	entry: PracticeEntry,
+	fetchImpl?: typeof fetch,
+	opts?: { offline?: boolean },
+): Promise<PracticeEntry | null> {
+	if (!subjectUsesSourcing(subject)) return entry;
+	if (entry.status === "confirmed" && entry.citation && entry.back.trim()) return entry;
+	if (!isTopicHintEntry(entry) && entry.status === "confirmed") return entry;
+	return verifyEntryIdentity(subject, entry, fetchImpl ?? fetch, opts);
+}
+
+export async function trySourcedFactPickItem(
 	subject: PracticeSubject,
 	entry: PracticeEntry,
 	allEntries: PracticeEntry[],
@@ -85,9 +99,9 @@ export async function trySourcedItemForEntry(
 ): Promise<PracticeDailyItem | null> {
 	if (!subjectUsesSourcing(subject) || !subject.sources?.length) return null;
 	if (!modelId && process.env.LH_PRACTICE_SKIP_LLM !== "1") return null;
-	if (!isTopicHintEntry(entry) && entry.status === "confirmed" && entry.back.trim()) {
-		return null;
-	}
+
+	const ready = await ensureSourcedEntryReady(subject, entry, fetchImpl, opts);
+	if (!ready || ready.status !== "confirmed" || !ready.citation) return null;
 
 	try {
 		await ensureSubjectSourcesCached(subject.sources, fetchImpl ?? fetch, opts);
@@ -95,10 +109,30 @@ export async function trySourcedItemForEntry(
 		return null;
 	}
 
-	const topic = entry.front.trim();
+	const topic = ready.front.trim();
 	const passages = retrievePassages(topic, subject.sources, 6);
 	if (!passages.length) {
 		logDrop(subject.subjectId, entry.entryId, "no_passages");
+		return null;
+	}
+
+	const citation = ready.citation;
+	const usedChunks = passages.filter((p) => p.sourceId === citation.sourceId);
+	const chunksForQuote = usedChunks.length ? usedChunks : passages;
+	if (!validCitationSourceId(citation.sourceId, passages)) {
+		logDrop(subject.subjectId, entry.entryId, "citation_source_id");
+		return null;
+	}
+	if (!quoteAppearsInChunks(citation.quote, chunksForQuote)) {
+		logDrop(subject.subjectId, entry.entryId, "quote_missing");
+		return null;
+	}
+	if (!answerSupportedByQuote(ready.back, citation.quote)) {
+		logDrop(subject.subjectId, entry.entryId, "quote_answer_mismatch");
+		return null;
+	}
+	if (!quoteMatchesTopic(topic, citation.quote)) {
+		logDrop(subject.subjectId, entry.entryId, "quote_topic_mismatch");
 		return null;
 	}
 
@@ -109,68 +143,71 @@ export async function trySourcedItemForEntry(
 			{
 				role: "system",
 				content:
-					"Write one quiz item using ONLY the provided sources. Return prompt, answer, short explain, and a citation with an exact verbatim quote from one passage.",
+					"Write only a quiz question stem. Do not state new facts, numbers, or names beyond the topic. Do not include the answer.",
 			},
 			{
 				role: "user",
-				content: `Topic: ${topic}\nEntry type: ${entry.type}\n\nSources:\n${context}`,
+				content: `Topic: ${topic}\nVerified answer (do not repeat verbatim): ${ready.back}\n\nSources:\n${context}`,
 			},
 		],
-		WRITER_SCHEMA,
+		FACT_PROMPT_SCHEMA,
 		fetchImpl,
 	);
-	const parsed = writerResult?.data;
+	const prompt = typeof writerResult?.data.prompt === "string" ? writerResult.data.prompt.trim() : "";
 	if (writerResult?.finishReason === "length") {
 		logDrop(subject.subjectId, entry.entryId, "writer_truncated", writerResult.rawSnippet);
 		return null;
 	}
-	if (!parsed || typeof parsed.answer !== "string" || !parsed.citation || typeof parsed.citation.quote !== "string") {
+	if (!prompt) {
 		logDrop(subject.subjectId, entry.entryId, "writer_shape", writerResult?.rawSnippet);
 		return null;
 	}
-
-	const citation = parsed.citation as { sourceId: string; url?: string; quote: string };
-	const usedChunks = passages.filter((p) => p.sourceId === citation.sourceId);
-	if (!quoteAppearsInChunks(citation.quote, usedChunks.length ? usedChunks : passages)) {
-		logDrop(subject.subjectId, entry.entryId, "quote_missing");
+	if (!promptClaimsAllowed(prompt, "", citation.quote, ready)) {
+		logDrop(subject.subjectId, entry.entryId, "prompt_claims");
 		return null;
 	}
 
-	const judgeModel = subject.judgeModel ?? modelId!;
-	const ok = await judgeSupports(judgeModel, parsed.answer, citation.quote, fetchImpl);
-	if (!ok) {
-		logDrop(subject.subjectId, entry.entryId, "judge_no");
-		return null;
-	}
-
-	const entries = practiceStore.readEntries();
-	const idx = entries.findIndex((e) => e.entryId === entry.entryId && e.subjectId === entry.subjectId);
-	if (idx < 0) return null;
-	const updated: PracticeEntry = {
-		...entries[idx]!,
-		back: parsed.answer.trim(),
-		status: "confirmed",
-		topicOnly: false,
-		citation: {
-			sourceId: citation.sourceId,
-			...(citation.url ? { url: citation.url } : {}),
-			quote: citation.quote,
-		},
-	};
-	entries[idx] = updated;
-	practiceStore.writeEntries(entries);
-
-	const item = await buildItemForEntry(subject, updated, allEntries, modelId, fetchImpl, {});
+	const item = await buildItemForEntry(
+		subject,
+		ready,
+		allEntries,
+		undefined,
+		fetchImpl,
+		{ templatedFactPrompt: prompt },
+	);
 	if (!item) return null;
+
+	const optionTexts = item.options
+		.filter((o) => o.type === "text")
+		.map((o) => (o as { text: string }).text);
+	const judgeModel = defaultJudgeModel(subject);
+	const ok = await judgeFactPick(judgeModel, prompt, ready.back, optionTexts, citation.quote, fetchImpl);
+	if (!ok) {
+		logDrop(subject.subjectId, entry.entryId, "judge_rejects");
+		return null;
+	}
 
 	const chunk = passages.find((p) => p.sourceId === citation.sourceId) ?? passages[0];
 	const source = cardSourceFromChunk(chunk, citation.url);
 	return {
 		...item,
-		explain: typeof parsed.explain === "string" ? parsed.explain : item.explain,
+		prompt: [{ type: "text", text: prompt }],
+		explain: ready.explain?.trim() || undefined,
 		...(source ? { source } : {}),
 		citationSourceId: citation.sourceId,
 	};
+}
+
+/** @deprecated identity items no longer use the writer; use ensureSourcedEntryReady + buildItemForEntry. */
+export async function trySourcedItemForEntry(
+	subject: PracticeSubject,
+	entry: PracticeEntry,
+	allEntries: PracticeEntry[],
+	modelId: string | undefined,
+	fetchImpl?: typeof fetch,
+	opts?: { offline?: boolean },
+): Promise<PracticeDailyItem | null> {
+	return trySourcedFactPickItem(subject, entry, allEntries, modelId, fetchImpl, opts);
 }
 
 function logDrop(subjectId: string, entryId: string, reason: string, rawSnippet?: string): void {

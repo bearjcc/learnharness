@@ -7,6 +7,8 @@ export interface DistractorOptions {
 	/** Require this media variant on every distractor. */
 	mediaVariant?: string;
 	bias?: DistractorBias;
+	/** Exclude peers in the same equivalence group (group-level identity questions). */
+	excludeGroup?: string;
 }
 
 /** Shared-tag overlap score (higher = closer). */
@@ -57,7 +59,8 @@ export function selectDistractors(
 			e.status === "confirmed" &&
 			e.subjectId === source.subjectId &&
 			e.type === source.type &&
-			(!options.mediaVariant || entryHasMediaVariant(e, options.mediaVariant)),
+			(!options.mediaVariant || entryHasMediaVariant(e, options.mediaVariant)) &&
+			(!options.excludeGroup || !e.group || e.group !== options.excludeGroup),
 	);
 	const scored = candidates
 		.map((e) => ({
