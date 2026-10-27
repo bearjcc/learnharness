@@ -95,7 +95,7 @@ Schedule on the host (example 06:15):
 curl -s -X POST http://127.0.0.1:3000/api/practice/daily-build -H "Content-Type: application/json" -d '{}'
 ```
 
-Optional GPU broker: set `LH_GPU_BROKER_URL` (e.g. `http://127.0.0.1:3880`). Daily build requests `POST /api/lease` with JSON `{ service, vramGb, … }`, heartbeats `POST /api/lease/<id>/heartbeat` while the build runs, and releases with `POST /api/lease/<id>/release`. Paths are overridable via `LH_GPU_BROKER_LEASE_PATH`, `LH_GPU_BROKER_HEARTBEAT_PATH`, `LH_GPU_BROKER_RELEASE_PATH` (`{id}` placeholder). If the broker is unreachable, the build runs against Ollama without a lease. A 503 from the **model** endpoint stops the run cleanly.
+Optional GPU broker: set `LH_GPU_BROKER_URL` (e.g. `http://127.0.0.1:3880`). Daily build requests `POST /api/lease` with JSON `{ service, job, vram_gb, class, owner, reason }` (snake_case per Dunce broker API), heartbeats `POST /api/lease/<id>/heartbeat` while the build runs, and releases with `POST /api/lease/<id>/release`. Paths are overridable via `LH_GPU_BROKER_LEASE_PATH`, `LH_GPU_BROKER_HEARTBEAT_PATH`, `LH_GPU_BROKER_RELEASE_PATH` (`{id}` placeholder). If the broker is unreachable, the build runs against Ollama without a lease. A 503 from the **model** endpoint stops the run cleanly.
 
 Set `LH_PRACTICE_SKIP_LLM=1` to build cards without calling the model (wording defaults).
 

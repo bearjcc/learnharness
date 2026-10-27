@@ -24,7 +24,7 @@ import {
 	decideEntry,
 	importEntries,
 } from "../src/server/practice/service.ts";
-import { withGpuBrokerLease } from "../src/server/practice/gpu-broker.ts";
+import { buildGpuBrokerLeaseBody, withGpuBrokerLease } from "../src/server/practice/gpu-broker.ts";
 import { WIKIMEDIA_USER_AGENT } from "../src/practice/wikimedia.ts";
 import { buildCheckContext } from "../src/server/practice/engine.ts";
 import { DEFAULT_MEDIA_VARIANT } from "../src/core/practice/media-variants.ts";
@@ -116,6 +116,10 @@ describe("groove ABC notation", () => {
 			assert.match(svg, /<svg/);
 			assert.match(svg, /width="160"/);
 			assert.match(svg, /abcjs-note|note-head|ellipse/i);
+			assert.doesNotMatch(svg, /Rock Beat|Half[- ]Time|Four on the Floor|Shuffle/i);
+			assert.doesNotMatch(svg, /scripts\.segno|abcjs-title/i);
+			assert.match(svg, /fill="#ffffff"/);
+			assert.match(svg, /fill="#111111"/);
 		});
 	}
 
@@ -313,14 +317,27 @@ describe("gpu broker lease", () => {
 		else process.env.LH_GPU_BROKER_URL = prev;
 	});
 
+	it("buildGpuBrokerLeaseBody matches Dunce broker contract", () => {
+		assert.deepEqual(buildGpuBrokerLeaseBody({}), {
+			service: "learnharness",
+			job: "practice-daily-build",
+			vram_gb: 8,
+			class: "batch",
+			owner: "learnharness",
+			reason: "practice daily build",
+		});
+	});
+
 	it("leases, heartbeats, and releases", async () => {
 		process.env.LH_GPU_BROKER_URL = "https://broker.test";
 		const calls: string[] = [];
+		let leaseBody: unknown;
 		const fakeFetch: typeof fetch = async (input, init) => {
 			const url = String(input);
 			const method = init?.method ?? "GET";
 			calls.push(`${method} ${url}`);
 			if (url.endsWith("/api/lease") && method === "POST") {
+				leaseBody = JSON.parse(String(init?.body));
 				return new Response(JSON.stringify({ id: "lease-1", state: "active" }), { status: 200 });
 			}
 			if (url.includes("/heartbeat")) {
@@ -336,6 +353,9 @@ describe("gpu broker lease", () => {
 		assert.equal(out.result, "done");
 		assert.ok(calls.some((c) => c.startsWith("POST https://broker.test/api/lease")));
 		assert.ok(calls.some((c) => c.includes("/release")));
+		assert.deepEqual(leaseBody, buildGpuBrokerLeaseBody({ LH_GPU_BROKER_URL: "https://broker.test" }));
+		assert.equal("vram_gb" in (leaseBody as object), true);
+		assert.equal("vramGb" in (leaseBody as object), false);
 	});
 
 	it("falls through when broker is unreachable", async () => {

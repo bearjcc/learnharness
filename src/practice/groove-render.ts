@@ -3,6 +3,7 @@ import abcjs from "abcjs";
 
 const DEFAULT_WIDTH_PX = 160;
 const PAPER_ID = "lh-groove-paper";
+const INK = "#111111";
 
 let paperHost: HTMLElement | null = null;
 
@@ -14,20 +15,52 @@ function ensureAbcDom(): void {
 	paperHost = document.getElementById(PAPER_ID);
 }
 
-function fitSvgWidth(svgHtml: string, widthPx: number): string {
-	const match = svgHtml.match(/viewBox="([^"]+)"/);
-	if (!match?.[1]) return svgHtml;
-	const parts = match[1].split(/\s+/).map(Number);
-	if (parts.length < 4 || !parts[2]) return svgHtml;
-	const vbW = parts[2];
-	const vbH = parts[3] ?? widthPx;
-	const height = Math.round((widthPx / vbW) * vbH);
-	let out = svgHtml.replace(/<svg([^>]*)>/, (full, attrs: string) => {
-		const hasXmlns = /\bxmlns=/.test(attrs);
-		const xmlns = hasXmlns ? "" : ' xmlns="http://www.w3.org/2000/svg"';
-		return `<svg${attrs}${xmlns} width="${widthPx}" height="${height}">`;
-	});
-	return out;
+/** Quiz renders: no titles or composer lines that give away groove names. */
+export function stripQuizAbc(abc: string): string {
+	return abc
+		.split("\n")
+		.filter((line) => !/^\s*T:/i.test(line) && !/^\s*C:/i.test(line))
+		.join("\n");
+}
+
+function finalizeGrooveSvg(svgHtml: string, widthPx: number): string {
+	ensureAbcDom();
+	const NS = "http://www.w3.org/2000/svg";
+	const container = document.createElement("div");
+	container.innerHTML = svgHtml.trim();
+	const source = container.querySelector("svg");
+	if (!source) return svgHtml;
+
+	source.querySelectorAll("title, .abcjs-title, [data-name*='segno']").forEach((node) => node.remove());
+	source.querySelectorAll("[fill='currentColor']").forEach((node) => node.setAttribute("fill", INK));
+	source.querySelectorAll("[stroke='currentColor']").forEach((node) => node.setAttribute("stroke", INK));
+	source.setAttribute("fill", INK);
+	source.setAttribute("stroke", INK);
+
+	const origW = Number.parseFloat(source.getAttribute("width") ?? "0") || widthPx;
+	const origH = Number.parseFloat(source.getAttribute("height") ?? "0") || widthPx * 0.5;
+	const pad = Math.max(6, widthPx * 0.05);
+	const targetW = widthPx;
+	const targetH = Math.max(Math.round((origH / origW) * targetW), Math.round(widthPx * 0.35));
+	const scale = Math.min((targetW - 2 * pad) / origW, (targetH - 2 * pad) / origH);
+	const offsetX = (targetW - origW * scale) / 2;
+	const offsetY = (targetH - origH * scale) / 2;
+
+	const out = document.createElementNS(NS, "svg");
+	out.setAttribute("xmlns", NS);
+	out.setAttribute("width", String(targetW));
+	out.setAttribute("height", String(targetH));
+	out.setAttribute("viewBox", `0 0 ${targetW} ${targetH}`);
+	const bg = document.createElementNS(NS, "rect");
+	bg.setAttribute("width", "100%");
+	bg.setAttribute("height", "100%");
+	bg.setAttribute("fill", "#ffffff");
+	out.appendChild(bg);
+	const g = document.createElementNS(NS, "g");
+	g.setAttribute("transform", `translate(${offsetX},${offsetY}) scale(${scale})`);
+	while (source.firstChild) g.appendChild(source.firstChild);
+	out.appendChild(g);
+	return out.outerHTML;
 }
 
 /** Render ABC drum notation to SVG (headless; abcjs + jsdom). */
@@ -36,21 +69,22 @@ export function renderGrooveAbcToSvg(abc: string, widthPx = DEFAULT_WIDTH_PX): s
 	const host = paperHost ?? document.getElementById(PAPER_ID);
 	if (!host) throw new Error("groove render host missing");
 	host.innerHTML = "";
-	const staffwidth = Math.max(180, Math.round(widthPx * 1.35));
-	abcjs.renderAbc(PAPER_ID, abc, {
+	const quizAbc = stripQuizAbc(abc);
+	const staffwidth = Math.max(200, Math.round(widthPx * 1.6));
+	abcjs.renderAbc(PAPER_ID, quizAbc, {
 		responsive: "resize",
 		staffwidth,
-		paddingtop: 0,
-		paddingbottom: 0,
-		paddingleft: 0,
-		paddingright: 0,
+		paddingtop: 10,
+		paddingbottom: 12,
+		paddingleft: 10,
+		paddingright: 14,
 		add_classes: true,
 	});
 	const svg = host.querySelector("svg");
 	if (!svg) {
-		return `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPx}" height="48"/>`;
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPx}" height="72"><rect width="100%" height="100%" fill="#fff"/></svg>`;
 	}
-	return fitSvgWidth(svg.outerHTML, widthPx);
+	return finalizeGrooveSvg(svg.outerHTML, widthPx);
 }
 
 /** @deprecated use renderGrooveAbcToSvg */

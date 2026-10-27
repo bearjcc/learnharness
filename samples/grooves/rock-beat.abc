@@ -1,10 +1,11 @@
 X:1
-T:Rock Beat
 M:4/4
-L:1/16
+L:1/8
 K:perc
-%%percmap B 35 normal
-%%percmap S 38 normal
+%%percmap B 36 normal
+%%percmap c 38 normal
 %%percmap g 42 x
 V:1
-[^Bg]g g g [Sg]g g g [^Bg]g g g [Sg]g g g |
+g g g g g g g g |
+V:2
+B z c z B z c z |

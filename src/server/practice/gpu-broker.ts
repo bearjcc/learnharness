@@ -1,6 +1,7 @@
 const DEFAULT_LEASE_BODY = {
 	service: "learnharness",
-	vramGb: 8,
+	job: "practice-daily-build",
+	vram_gb: 8,
 	class: "batch",
 	owner: "learnharness",
 	reason: "practice daily build",
@@ -25,16 +26,22 @@ function releasePath(id: string): string {
 	return template.replace("{id}", encodeURIComponent(id));
 }
 
-function leaseRequestBody(): Record<string, unknown> {
-	const service = process.env.LH_GPU_BROKER_SERVICE?.trim() || DEFAULT_LEASE_BODY.service;
-	const vramGb = Number(process.env.LH_GPU_BROKER_VRAM_GB) || DEFAULT_LEASE_BODY.vramGb;
+/** Lease POST body for Dunce GPU broker (snake_case per broker API). */
+export function buildGpuBrokerLeaseBody(env: NodeJS.ProcessEnv = process.env): Record<string, unknown> {
+	const service = env.LH_GPU_BROKER_SERVICE?.trim() || DEFAULT_LEASE_BODY.service;
+	const vram_gb = Number(env.LH_GPU_BROKER_VRAM_GB) || DEFAULT_LEASE_BODY.vram_gb;
 	return {
 		service,
-		vramGb,
-		class: process.env.LH_GPU_BROKER_CLASS?.trim() || DEFAULT_LEASE_BODY.class,
-		owner: process.env.LH_GPU_BROKER_OWNER?.trim() || DEFAULT_LEASE_BODY.owner,
-		reason: process.env.LH_GPU_BROKER_REASON?.trim() || DEFAULT_LEASE_BODY.reason,
+		job: env.LH_GPU_BROKER_JOB?.trim() || DEFAULT_LEASE_BODY.job,
+		vram_gb,
+		class: env.LH_GPU_BROKER_CLASS?.trim() || DEFAULT_LEASE_BODY.class,
+		owner: env.LH_GPU_BROKER_OWNER?.trim() || DEFAULT_LEASE_BODY.owner,
+		reason: env.LH_GPU_BROKER_REASON?.trim() || DEFAULT_LEASE_BODY.reason,
 	};
+}
+
+function leaseRequestBody(): Record<string, unknown> {
+	return buildGpuBrokerLeaseBody();
 }
 
 function sleep(ms: number): Promise<void> {
