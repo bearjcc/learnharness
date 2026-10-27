@@ -1,0 +1,10 @@
+X:1
+T:Half Time
+M:4/4
+L:1/16
+K:perc
+%%percmap B 35 normal
+%%percmap S 38 normal
+%%percmap g 42 x
+V:1
+[^Bg]g g g g g g g g [Sg]g g g g g g g g |

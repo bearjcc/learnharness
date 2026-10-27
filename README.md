@@ -67,6 +67,8 @@ npm run dev        # http://localhost:3000
 npm test           # deterministic, no LLM, no network
 ```
 
+**Try the practice quiz (Choice)** without API keys or a daily build: open `GET /api/practice/today?subject=demo` after `npm run dev`, or use the `demo` sandbox subject in the app. It ships from `fixtures/practice/demo/` and covers every card type (terms, facts, drum notation, country outlines and locator maps, 2- and 6-option picks). Answers are scored in the response only — nothing is written to FSRS, stats, or the knowledge graph, so you can retake it anytime.
+
 See the [development guide](docs/development.md), [architecture](docs/architecture.md), and [desktop release guide](docs/desktop-release.md).
 
 Questions, bug reports, and feature requests: [GitHub Issues](https://github.com/amosblomqvist/learnharness/issues).

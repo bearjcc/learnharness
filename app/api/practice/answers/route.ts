@@ -10,5 +10,5 @@ export async function POST(request: Request) {
 	}
 	const result = recordAnswer(body);
 	if (!result.ok) return Response.json({ error: result.error ?? "failed" }, { status: 400 });
-	return Response.json({ ok: true });
+	return Response.json(result);
 }

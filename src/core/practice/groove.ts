@@ -1,4 +1,24 @@
+import { createHash } from "node:crypto";
 import type { GrooveGrid } from "./contracts.ts";
+
+const ABC_INSTRUMENT: Record<string, string> = {
+	kick: "B",
+	bass: "B",
+	bassdrum: "B",
+	snare: "S",
+	hihat: "g",
+	"hi-hat": "g",
+	hat: "g",
+};
+
+const ABC_HEADER = `%%percmap B 35 normal
+%%percmap S 38 normal
+%%percmap g 42 x
+`;
+
+export function isAbcGrooveText(raw: string): boolean {
+	return raw.trimStart().startsWith("X:");
+}
 
 export function parseGrooveGrid(raw: string): GrooveGrid | null {
 	try {
@@ -17,32 +37,43 @@ export function parseGrooveGrid(raw: string): GrooveGrid | null {
 	}
 }
 
-/** Simple grid SVG (no external notation libs). */
-export function renderGrooveSvg(grid: GrooveGrid): string {
-	const stepW = 14;
-	const rowH = 18;
-	const names = Object.keys(grid.instruments).sort();
-	const width = grid.stepsPerBar * grid.bars * stepW + 80;
-	const height = names.length * rowH + 24;
-	const lines: string[] = [
-		`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
-		`<rect width="100%" height="100%" fill="#111"/>`,
-	];
-	let y = 12;
-	for (const name of names) {
-		lines.push(`<text x="4" y="${y + 12}" fill="#ccc" font-size="10" font-family="monospace">${name}</text>`);
-		const hits = grid.instruments[name] ?? [];
-		for (let bar = 0; bar < grid.bars; bar++) {
-			for (let step = 0; step < grid.stepsPerBar; step++) {
-				const on = hits[bar]?.[step];
-				const x = 72 + (bar * grid.stepsPerBar + step) * stepW;
-				lines.push(
-					`<rect x="${x}" y="${y}" width="${stepW - 2}" height="${rowH - 4}" rx="2" fill="${on ? "#4ade80" : "#333"}"/>`,
-				);
-			}
+/** Legacy JSON step grid → ABC (kick/snare/hi-hat). */
+export function grooveGridToAbc(grid: GrooveGrid, title = "Groove"): string {
+	const dur = grid.stepsPerBar === 8 ? "1/8" : "1/16";
+	const stepsTotal = grid.stepsPerBar * grid.bars;
+	let body = "";
+	for (let step = 0; step < stepsTotal; step++) {
+		const bar = Math.floor(step / grid.stepsPerBar);
+		const stepInBar = step % grid.stepsPerBar;
+		const notes: string[] = [];
+		for (const [name, bars] of Object.entries(grid.instruments)) {
+			if (!bars[bar]?.[stepInBar]) continue;
+			const letter = ABC_INSTRUMENT[name.toLowerCase()] ?? ABC_INSTRUMENT[name.toLowerCase().replace(/\s+/g, "-")];
+			if (letter) notes.push(letter);
 		}
-		y += rowH;
+		if (notes.length === 0) body += " z";
+		else if (notes.length === 1) body += ` ${notes[0]}`;
+		else body += ` [${notes.join("")}]`;
 	}
-	lines.push("</svg>");
-	return lines.join("");
+	return `X:1
+T:${title}
+M:4/4
+L:${dur}
+K:perc
+${ABC_HEADER}V:1
+${body.trim()} |`;
+}
+
+/** Normalize entry `back` to ABC notation, or null if invalid. */
+export function resolveGrooveAbc(back: string, title?: string): string | null {
+	const trimmed = back.trim();
+	if (isAbcGrooveText(trimmed)) return trimmed;
+	const grid = parseGrooveGrid(trimmed);
+	if (grid) return grooveGridToAbc(grid, title ?? "Groove");
+	return null;
+}
+
+export function grooveNotationCacheToken(abc: string): string {
+	const hash = createHash("sha256").update(abc).digest("hex").slice(0, 20);
+	return `groove-${hash}.svg`;
 }

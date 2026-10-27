@@ -1,6 +1,17 @@
 import type { ItemKindPlugin } from "./types.ts";
-import { parseGrooveGrid, renderGrooveSvg } from "../../core/practice/groove.ts";
+import { grooveNotationCacheToken, resolveGrooveAbc } from "../../core/practice/groove.ts";
+import { renderGrooveAbcToSvg } from "../groove-render.ts";
+import { practiceStore } from "../../store/practice.ts";
 import { baseItem, fourDistinct } from "./shared.ts";
+
+function cachedGrooveImageToken(abc: string): string {
+	const token = grooveNotationCacheToken(abc);
+	if (!practiceStore.mediaExists(token)) {
+		const svg = renderGrooveAbcToSvg(abc);
+		practiceStore.writeMedia(token, Buffer.from(svg, "utf-8"));
+	}
+	return token;
+}
 
 export const grooveIdKind: ItemKindPlugin = {
 	kind: "groove-id",
@@ -18,12 +29,11 @@ export const grooveIdKind: ItemKindPlugin = {
 		};
 	},
 	assemble(entry, optionEntries, model) {
-		const grid = parseGrooveGrid(entry.back);
-		if (!grid) return null;
+		const abc = resolveGrooveAbc(entry.back, entry.front);
+		if (!abc) return null;
 		const all = [entry, ...optionEntries];
 		if (!fourDistinct(all)) return null;
-		const svg = renderGrooveSvg(grid);
-		const token = `inline:${Buffer.from(svg).toString("base64url")}`;
+		const token = cachedGrooveImageToken(abc);
 		const shuffled = [...all].sort((a, b) => a.entryId.localeCompare(b.entryId));
 		const options = shuffled.map((e) => ({ id: e.entryId, type: "text" as const, text: e.front }));
 		return baseItem(
@@ -38,7 +48,7 @@ export const grooveIdKind: ItemKindPlugin = {
 	},
 	check(item, source, ctx) {
 		const errors: string[] = [];
-		if (!parseGrooveGrid(source.back)) errors.push("invalid groove grid");
+		if (!resolveGrooveAbc(source.back, source.front)) errors.push("invalid groove notation");
 		if (item.correctOptionId !== source.entryId) errors.push("wrong correct");
 		if (item.options.length !== 4) errors.push("need 4 options");
 		for (const opt of item.options) {

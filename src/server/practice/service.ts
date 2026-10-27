@@ -7,16 +7,45 @@ import type {
 	PracticeSubject,
 } from "../../core/practice/contracts.ts";
 import { applyFsrsReview } from "../../core/practice/fsrs.ts";
+import { isSandboxSubject } from "../../core/practice/sandbox.ts";
 import { practiceStore } from "../../store/practice.ts";
 import { extensionForContentType, resolveCommonsImage } from "../../practice/wikimedia.ts";
 import { newEntryId } from "./daily-build.ts";
-import { nanoid } from "nanoid";
+import { findDemoCard, loadDemoDeck, loadDemoSubject } from "../../practice/demo/load.ts";
+import { DEMO_SUBJECT_ID } from "../../practice/demo/paths.ts";
+
+export interface RecordAnswerResult {
+	ok: boolean;
+	error?: string;
+	sandbox?: boolean;
+	correct?: boolean;
+	undo?: boolean;
+}
+
+function mergeSubjects(subjects: PracticeSubject[]): PracticeSubject[] {
+	const demo = loadDemoSubject();
+	if (subjects.some((s) => s.subjectId === DEMO_SUBJECT_ID)) return subjects;
+	return [...subjects, demo];
+}
+
+function subjectById(subjectId: string): PracticeSubject | undefined {
+	return mergeSubjects(practiceStore.readSubjects()).find((s) => s.subjectId === subjectId);
+}
 
 export function listTodayCards(subjectFilter?: string): PracticePickCard[] {
-	const subjects = practiceStore.readSubjects().filter((s) => s.enabled);
+	const subjects = mergeSubjects(practiceStore.readSubjects()).filter((s) => s.enabled);
 	const today = new Date().toISOString().slice(0, 10);
 	const bySubject = new Map<string, import("../../core/practice/contracts.ts").PracticeDailyItem[]>();
+
+	if (subjectFilter) {
+		const subject = subjectById(subjectFilter);
+		if (subject && isSandboxSubject(subject)) {
+			return loadDemoDeck().map(dailyItemToPickCard);
+		}
+	}
+
 	for (const s of subjects) {
+		if (isSandboxSubject(s)) continue;
 		if (subjectFilter && s.subjectId !== subjectFilter) continue;
 		if (s.dailyQueueDate !== today || !s.dailyQueue?.length) continue;
 		bySubject.set(s.subjectId, s.dailyQueue);
@@ -27,28 +56,40 @@ export function listTodayCards(subjectFilter?: string): PracticePickCard[] {
 	return items.map(dailyItemToPickCard);
 }
 
-export function recordAnswer(body: PracticeAnswerEvent): { ok: boolean; error?: string } {
+export function recordAnswer(body: PracticeAnswerEvent): RecordAnswerResult {
+	const subject = subjectById(body.subject);
+	if (isSandboxSubject(subject)) {
+		const card = findDemoCard(body.card_id);
+		if (!card) return { ok: false, error: "unknown card" };
+		if (body.undo) {
+			return { ok: true, sandbox: true, undo: true };
+		}
+		const correct = body.picked === card.correctOptionId;
+		return { ok: true, sandbox: true, correct };
+	}
+
 	const events = practiceStore.readAnswerEvents();
 	if (events.some((e) => e.event_id === body.event_id)) return { ok: true };
 	if (body.undo) {
 		practiceStore.appendAnswerEvent(body);
-		return { ok: true };
+		return { ok: true, undo: true };
 	}
 	practiceStore.appendAnswerEvent(body);
 	const entries = practiceStore.readEntries();
-	const entry = entries.find((e) => e.subjectId === body.subject && e.entryId === body.card_id.split("_")[0]);
-	// card id is card_xxx; map via daily queue — store entryId on item
 	const cardEntryId = findEntryIdForCard(body.card_id, body.subject);
 	const target = entries.find((e) => e.entryId === cardEntryId && e.subjectId === body.subject);
 	if (target && body.correct !== undefined) {
 		target.fsrs = applyFsrsReview(target, body.correct);
 		practiceStore.writeEntries(entries);
 	}
-	return { ok: true };
+	return { ok: true, correct: body.correct };
 }
 
 function findEntryIdForCard(cardId: string, subjectId: string): string | undefined {
-	const subject = practiceStore.readSubjects().find((s) => s.subjectId === subjectId);
+	const subject = subjectById(subjectId);
+	if (isSandboxSubject(subject)) {
+		return findDemoCard(cardId)?.entryId;
+	}
 	const item = subject?.dailyQueue?.find((c) => c.id === cardId);
 	return item?.entryId;
 }
@@ -56,17 +97,27 @@ function findEntryIdForCard(cardId: string, subjectId: string): string | undefin
 export function listPendingEntries(subjectId?: string): PracticeEntry[] {
 	return practiceStore
 		.readEntries()
-		.filter((e) => e.status === "pending" && (!subjectId || e.subjectId === subjectId));
+		.filter(
+			(e) =>
+				e.status === "pending" &&
+				e.subjectId !== DEMO_SUBJECT_ID &&
+				(!subjectId || e.subjectId === subjectId) &&
+				!isSandboxSubject(subjectById(e.subjectId)),
+		);
 }
 
 export function decideEntry(eventId: string, entryId: string, value: "keep" | "reject"): { ok: boolean } {
+	const entries = practiceStore.readEntries();
+	const entry = entries.find((e) => e.entryId === entryId);
+	if (entry && isSandboxSubject(subjectById(entry.subjectId))) {
+		return { ok: false };
+	}
 	const prior = practiceStore.readEntryDecisions();
 	if (prior.some((e) => e.event_id === eventId)) return { ok: true };
 	practiceStore.appendEntryDecision({ event_id: eventId, entry_id: entryId, value });
-	const entries = practiceStore.readEntries();
-	const entry = entries.find((e) => e.entryId === entryId);
-	if (!entry) return { ok: false };
-	entry.status = value === "keep" ? "confirmed" : "retired";
+	const target = entries.find((e) => e.entryId === entryId);
+	if (!target) return { ok: false };
+	target.status = value === "keep" ? "confirmed" : "retired";
 	practiceStore.writeEntries(entries);
 	return { ok: true };
 }
@@ -79,6 +130,10 @@ export async function importEntries(
 	let imported = 0;
 	let skipped = 0;
 	for (const row of rows) {
+		if (row.subjectId === DEMO_SUBJECT_ID) {
+			skipped++;
+			continue;
+		}
 		const entryId = row.entryId ?? newEntryId();
 		if (entries.some((e) => e.entryId === entryId)) {
 			skipped++;
@@ -116,6 +171,7 @@ export async function importEntries(
 			...(row.aliases ? { aliases: row.aliases } : {}),
 			...(row.tags ? { tags: row.tags } : {}),
 			...(media ? { media } : {}),
+			...(row.variants ? { variants: row.variants } : {}),
 			origin,
 			status: "pending",
 		});
@@ -126,7 +182,8 @@ export async function importEntries(
 }
 
 export function upsertSubject(subject: PracticeSubject): void {
-	const subjects = practiceStore.readSubjects();
+	if (subject.subjectId === DEMO_SUBJECT_ID) return;
+	const subjects = practiceStore.readSubjects().filter((s) => s.subjectId !== DEMO_SUBJECT_ID);
 	const idx = subjects.findIndex((s) => s.subjectId === subject.subjectId);
 	if (idx >= 0) subjects[idx] = subject;
 	else subjects.push(subject);
@@ -134,7 +191,7 @@ export function upsertSubject(subject: PracticeSubject): void {
 }
 
 export function readSubjects(): PracticeSubject[] {
-	return practiceStore.readSubjects();
+	return mergeSubjects(practiceStore.readSubjects());
 }
 
 export function mediaResponse(token: string): { bytes: Buffer; contentType: string } | null {

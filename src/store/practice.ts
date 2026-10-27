@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PRACTICE_FILES } from "../../config.ts";
+import { readDemoMedia } from "../practice/demo/load.ts";
 import type {
 	PracticeAnswerEvent,
 	PracticeEntry,
@@ -82,6 +83,7 @@ export const practiceStore = {
 	},
 	mediaExists(token: string): boolean {
 		if (token.startsWith("inline:")) return true;
+		if (readDemoMedia(token)) return true;
 		return fs.existsSync(practiceStore.mediaPath(token));
 	},
 	writeMedia(token: string, bytes: Buffer): void {
@@ -89,6 +91,10 @@ export const practiceStore = {
 		fs.writeFileSync(practiceStore.mediaPath(token), bytes);
 	},
 	readMedia(token: string): { bytes: Buffer; contentType: string } | null {
+		if (!token.startsWith("inline:")) {
+			const demo = readDemoMedia(token);
+			if (demo) return demo;
+		}
 		if (token.startsWith("inline:")) {
 			const b64 = token.slice("inline:".length);
 			const bytes = Buffer.from(b64, "base64url");

@@ -9,6 +9,14 @@ npm install
 npm run build
 ```
 
+When `NODE_ENV=production`, install build tooling as well (Tailwind/PostCSS are runtime build deps):
+
+```bash
+npm ci --include=dev
+# or: npm install --include=dev
+npm run build
+```
+
 Serve on the default port (3000):
 
 ```bash

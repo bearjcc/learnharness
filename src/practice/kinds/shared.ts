@@ -9,6 +9,7 @@ export function baseItem(
 	prompt: PracticeDailyItem["prompt"],
 	options: PracticeDailyItem["options"],
 	explain?: string,
+	mediaVariant?: string,
 ): PracticeDailyItem {
 	return {
 		id: `card_${nanoid(12)}`,
@@ -21,6 +22,7 @@ export function baseItem(
 		options,
 		...(explain ? { explain } : {}),
 		...(entry.tags?.length ? { tags: entry.tags } : {}),
+		...(mediaVariant ? { mediaVariant } : {}),
 	};
 }
 

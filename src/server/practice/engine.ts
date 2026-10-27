@@ -1,4 +1,5 @@
 import { selectDistractors } from "../../core/practice/distractors.ts";
+import { pickMediaVariant } from "../../core/practice/media-variants.ts";
 import type { PracticeDailyItem, PracticeEntry, PracticeSubject } from "../../core/practice/contracts.ts";
 import { applicableKinds, kindFor } from "../../practice/kinds/registry.ts";
 import type { KindCheckContext } from "../../practice/kinds/types.ts";
@@ -23,10 +24,18 @@ export async function buildItemForEntry(
 	const kindIds = subject.itemKinds.length ? subject.itemKinds : applicableKinds(entry).map((k) => k.kind);
 	const kind = kindIds.map((id) => kindFor(entry, id)).find(Boolean);
 	if (!kind) return null;
+	const today = new Date().toISOString().slice(0, 10);
+	const mediaVariant = pickMediaVariant(subject, entry, `${subject.subjectId}:${entry.entryId}:${today}`);
+	const needsVariant = kind.kind === "image-pick" || kind.kind === "label-pick";
+	if (needsVariant && !mediaVariant) return null;
 	const distractors = selectDistractors(
 		entry,
 		allEntries.filter((e) => e.status === "confirmed"),
 		3,
+		{
+			...(mediaVariant ? { mediaVariant } : {}),
+			bias: subject.mediaVariants?.distractorBias,
+		},
 	);
 	if (distractors.length < 3) return null;
 	let modelOut: { prompt?: string; explain?: string } | undefined;
@@ -45,7 +54,7 @@ export async function buildItemForEntry(
 			};
 		}
 	}
-	const item = kind.assemble(entry, distractors, modelOut);
+	const item = kind.assemble(entry, distractors, modelOut, mediaVariant ? { mediaVariant } : undefined);
 	if (!item) return null;
 	const check = kind.check(item, entry, buildCheckContext(allEntries));
 	return check.ok ? item : null;

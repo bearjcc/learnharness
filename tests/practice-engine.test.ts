@@ -1,7 +1,5 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 import os from "node:os";
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "lh-practice-"));
@@ -10,7 +8,10 @@ process.env.LH_PRACTICE_SKIP_LLM = "1";
 import { selectDistractors } from "../src/core/practice/distractors.ts";
 import { applyFsrsReview, defaultFsrsState, fsrsDue } from "../src/core/practice/fsrs.ts";
 import { mixedCardStack, dailyItemToPickCard } from "../src/core/practice/cards.ts";
-import { parseGrooveGrid, renderGrooveSvg } from "../src/core/practice/groove.ts";
+import fs from "node:fs";
+import path from "node:path";
+import { resolveGrooveAbc } from "../src/core/practice/groove.ts";
+import { renderGrooveAbcToSvg } from "../src/practice/groove-render.ts";
 import type { PracticeEntry, PracticeDailyItem } from "../src/core/practice/contracts.ts";
 import { imagePickKind } from "../src/practice/kinds/image-pick.ts";
 import { labelPickKind } from "../src/practice/kinds/label-pick.ts";
@@ -23,7 +24,10 @@ import {
 	decideEntry,
 	importEntries,
 } from "../src/server/practice/service.ts";
+import { withGpuBrokerLease } from "../src/server/practice/gpu-broker.ts";
+import { WIKIMEDIA_USER_AGENT } from "../src/practice/wikimedia.ts";
 import { buildCheckContext } from "../src/server/practice/engine.ts";
+import { DEFAULT_MEDIA_VARIANT } from "../src/core/practice/media-variants.ts";
 
 beforeEach(() => {
 	fs.mkdirSync(path.dirname(PRACTICE_FILES.subjects), { recursive: true });
@@ -100,14 +104,29 @@ describe("mixed stack", () => {
 	});
 });
 
-describe("groove SVG", () => {
-	it("renders a grid", () => {
-		const grid = parseGrooveGrid(
-			JSON.stringify({ stepsPerBar: 4, bars: 1, instruments: { kick: [[true, false, false, false]] } }),
-		);
-		assert.ok(grid);
-		const svg = renderGrooveSvg(grid!);
-		assert.match(svg, /<svg/);
+const SEED_GROOVES = ["rock-beat", "half-time", "four-on-the-floor", "shuffle"] as const;
+const GROOVE_SAMPLES_DIR = path.join(process.cwd(), "samples", "grooves");
+
+describe("groove ABC notation", () => {
+	for (const name of SEED_GROOVES) {
+		it(`renders seed groove ${name} with noteheads`, () => {
+			const abc = fs.readFileSync(path.join(GROOVE_SAMPLES_DIR, `${name}.abc`), "utf-8");
+			assert.ok(resolveGrooveAbc(abc));
+			const svg = renderGrooveAbcToSvg(abc, 160);
+			assert.match(svg, /<svg/);
+			assert.match(svg, /width="160"/);
+			assert.match(svg, /abcjs-note|note-head|ellipse/i);
+		});
+	}
+
+	it("converts legacy JSON grid to ABC", () => {
+		const back = JSON.stringify({
+			stepsPerBar: 4,
+			bars: 1,
+			instruments: { kick: [[true, false, false, false]] },
+		});
+		const abc = resolveGrooveAbc(back);
+		assert.ok(abc?.includes("K:perc"));
 	});
 });
 
@@ -128,10 +147,52 @@ describe("image-pick check", () => {
 			}),
 		);
 		const source = entries[0]!;
-		const item = imagePickKind.assemble(source, entries.slice(1), { prompt: "Pick" });
+		const item = imagePickKind.assemble(source, entries.slice(1), { prompt: "Pick" }, {
+			mediaVariant: DEFAULT_MEDIA_VARIANT,
+		});
 		assert.ok(item);
 		const check = imagePickKind.check(item!, source, buildCheckContext(entries));
 		assert.equal(check.ok, true);
+	});
+});
+
+describe("media variants", () => {
+	it("rejects image-pick items that mix variants", () => {
+		practiceStore.writeMedia("a-outline.svg", Buffer.from("<svg/>"));
+		practiceStore.writeMedia("a-locator.svg", Buffer.from("<svg/>"));
+		practiceStore.writeMedia("b-outline.svg", Buffer.from("<svg/>"));
+		practiceStore.writeMedia("b-locator.svg", Buffer.from("<svg/>"));
+		const mk = (id: string) =>
+			entry({
+				subjectId: "geo",
+				entryId: id,
+				type: "visual",
+				front: id,
+				back: id,
+				variants: {
+					outline: { kind: "svg", ref: `${id}-outline.svg` },
+					locator: { kind: "svg", ref: `${id}-locator.svg` },
+				},
+			});
+		const entries = ["a", "b", "c", "d"].map(mk);
+		practiceStore.writeMedia("c-outline.svg", Buffer.from("<svg/>"));
+		practiceStore.writeMedia("c-locator.svg", Buffer.from("<svg/>"));
+		practiceStore.writeMedia("d-outline.svg", Buffer.from("<svg/>"));
+		practiceStore.writeMedia("d-locator.svg", Buffer.from("<svg/>"));
+		const source = entries[0]!;
+		const good = imagePickKind.assemble(source, entries.slice(1), { prompt: "?" }, { mediaVariant: "outline" });
+		assert.ok(good?.mediaVariant === "outline");
+		const bad = {
+			...good!,
+			options: good!.options.map((o, i) =>
+				i === 1 && o.type === "image"
+					? { ...o, token: "b-locator.svg" }
+					: o,
+			),
+		};
+		const check = imagePickKind.check(bad, source, buildCheckContext(entries));
+		assert.equal(check.ok, false);
+		assert.ok(check.errors.some((e) => e.includes("variant")));
 	});
 });
 
@@ -154,7 +215,9 @@ describe("label-pick", () => {
 			practiceStore.writeMedia(ref, Buffer.from("<svg/>"));
 		}
 		practiceStore.writeMedia("u.svg", Buffer.from("<svg/>"));
-		const item = labelPickKind.assemble(entries[0]!, entries.slice(1));
+		const item = labelPickKind.assemble(entries[0]!, entries.slice(1), undefined, {
+			mediaVariant: DEFAULT_MEDIA_VARIANT,
+		});
 		assert.ok(item?.prompt.some((p) => p.type === "image"));
 	});
 });
@@ -198,6 +261,7 @@ describe("wikimedia import mock", () => {
 		const fakeFetch: typeof fetch = async (input) => {
 			const url = String(input);
 			if (url.includes("api.php")) {
+				assert.match(url, /iiurlwidth=512/);
 				return new Response(
 					JSON.stringify({
 						query: {
@@ -205,7 +269,8 @@ describe("wikimedia import mock", () => {
 								"1": {
 									imageinfo: [
 										{
-											url: "https://commons.test/file.svg",
+											url: "https://upload.wikimedia.org/original.svg",
+											thumburl: "https://upload.wikimedia.org/thumb/512.png",
 											extmetadata: { LicenseShortName: { value: "CC0" } },
 										},
 									],
@@ -238,6 +303,56 @@ describe("wikimedia import mock", () => {
 		assert.equal(stored.status, "pending");
 		assert.ok(stored.media?.attribution?.license);
 		assert.ok(practiceStore.mediaExists(stored.media!.ref));
+	});
+});
+
+describe("gpu broker lease", () => {
+	const prev = process.env.LH_GPU_BROKER_URL;
+	afterEach(() => {
+		if (prev === undefined) delete process.env.LH_GPU_BROKER_URL;
+		else process.env.LH_GPU_BROKER_URL = prev;
+	});
+
+	it("leases, heartbeats, and releases", async () => {
+		process.env.LH_GPU_BROKER_URL = "https://broker.test";
+		const calls: string[] = [];
+		const fakeFetch: typeof fetch = async (input, init) => {
+			const url = String(input);
+			const method = init?.method ?? "GET";
+			calls.push(`${method} ${url}`);
+			if (url.endsWith("/api/lease") && method === "POST") {
+				return new Response(JSON.stringify({ id: "lease-1", state: "active" }), { status: 200 });
+			}
+			if (url.includes("/heartbeat")) {
+				return new Response(JSON.stringify({ state: "active" }), { status: 200 });
+			}
+			if (url.includes("/release")) {
+				return new Response(JSON.stringify({ ok: true }), { status: 200 });
+			}
+			return new Response("not found", { status: 404 });
+		};
+		const out = await withGpuBrokerLease(async () => "done", fakeFetch);
+		assert.equal(out.outcome, "ok");
+		assert.equal(out.result, "done");
+		assert.ok(calls.some((c) => c.startsWith("POST https://broker.test/api/lease")));
+		assert.ok(calls.some((c) => c.includes("/release")));
+	});
+
+	it("falls through when broker is unreachable", async () => {
+		process.env.LH_GPU_BROKER_URL = "https://broker.test";
+		const fakeFetch: typeof fetch = async () => {
+			throw new Error("fetch failed");
+		};
+		const out = await withGpuBrokerLease(async () => "direct", fakeFetch);
+		assert.equal(out.outcome, "none");
+		assert.equal(out.result, "direct");
+	});
+});
+
+describe("wikimedia user agent", () => {
+	it("includes app version and repo URL", () => {
+		assert.match(WIKIMEDIA_USER_AGENT, /LearnHarness\/\d/);
+		assert.match(WIKIMEDIA_USER_AGENT, /github\.com/);
 	});
 });
 

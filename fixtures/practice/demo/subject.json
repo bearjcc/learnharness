@@ -1,0 +1,8 @@
+{
+	"subjectId": "demo",
+	"title": "Try the quiz",
+	"enabled": true,
+	"dailyCards": 0,
+	"itemKinds": [],
+	"sandbox": true
+}
