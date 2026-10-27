@@ -1,5 +1,8 @@
 import type { ItemKindPlugin } from "./types.ts";
-import { baseItem, fourDistinct } from "./shared.ts";
+import { baseItem } from "./shared.ts";
+import { promptPartText, validateItemFacets } from "../../core/practice/facets.ts";
+import { buildTextPickOptions } from "./option-build.ts";
+import { finishTextPickCheck } from "./text-pick-check.ts";
 
 export const termPickKind: ItemKindPlugin = {
 	kind: "term-pick",
@@ -13,23 +16,34 @@ export const termPickKind: ItemKindPlugin = {
 		required: ["prompt"],
 		additionalProperties: false,
 	},
-	buildModelPrompt(entry, options) {
+	buildModelPrompt(entry, options, hints) {
+		const inv =
+			hints?.inventedCount
+				? ` Invent ${hints.inventedCount} additional wrong meanings in the same language as the correct answer (plausible but false).`
+				: "";
 		return {
-			system: "Write a short quiz question. Do not invent answers; options are fixed.",
-			user: `Term: ${entry.front}\nCorrect meaning: ${entry.back}\nDistractors: ${options.map((o) => o.back).join(" | ")}`,
+			system: `Write a short quiz question. The correct answer is fixed; distractors may include invented wrong meanings.${inv}`,
+			user: `Term: ${entry.front}\nCorrect meaning: ${entry.back}\nPeer meanings: ${options.map((o) => o.back).join(" | ")}`,
 		};
 	},
-	assemble(entry, optionEntries, model) {
-		const all = [entry, ...optionEntries];
-		if (!fourDistinct(all)) return null;
-		const shuffled = [...all].sort((a, b) => a.entryId.localeCompare(b.entryId));
-		const options = shuffled.map((e) => ({ id: e.entryId, type: "text" as const, text: e.back }));
+	assemble(entry, optionEntries, model, ctx) {
+		const subject = ctx?.subject;
+		const invented = ctx?.inventedDistractors ?? model?.inventedDistractors ?? [];
+		const options = buildTextPickOptions(
+			"term-pick",
+			entry,
+			optionEntries,
+			invented,
+			subject,
+			ctx?.shuffleSeed,
+		);
+		if (!options) return null;
 		return baseItem(
 			"term-pick",
 			entry,
-			shuffled,
+			optionEntries,
 			entry.entryId,
-			[{ type: "text", text: model?.prompt ?? `What does "${entry.front}" mean?` }],
+			[promptPartText(model?.prompt ?? `What does "${entry.front}" mean?`, "front", subject)],
 			options,
 			model?.explain,
 		);
@@ -37,13 +51,16 @@ export const termPickKind: ItemKindPlugin = {
 	check(item, source, ctx) {
 		const errors: string[] = [];
 		if (item.options.length !== 4) errors.push("need 4 options");
-		const ids = new Set(item.options.map((o) => o.id));
-		if (ids.size !== 4) errors.push("options must be distinct");
 		if (item.correctOptionId !== source.entryId) errors.push("wrong correct id");
+		const correct = item.options.find((o) => o.id === source.entryId);
+		if (!correct || correct.source === "invented") errors.push("correct must be entry-sourced");
 		for (const opt of item.options) {
 			if (opt.type !== "text" || !opt.text.trim()) errors.push("text option required");
-			if (!ctx.entriesById.has(opt.id)) errors.push(`unknown option ${opt.id}`);
 		}
+		errors.push(...validateItemFacets(item, ctx.subject, ctx.entriesById));
 		return { ok: errors.length === 0, errors };
+	},
+	async checkAsync(item, source, ctx, assembleCtx) {
+		return finishTextPickCheck(item, source, ctx, assembleCtx, this.check(item, source, ctx).errors);
 	},
 };

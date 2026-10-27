@@ -24,6 +24,10 @@ Configure in **Settings → Practice** or `PUT /api/practice/subjects`:
 
 `itemKinds` lists plugin ids (empty = all kinds that apply to each entry type).
 
+Wrong answers can be drawn from other **confirmed** entries and/or **invented** by the writer model (`distractors: { "fromEntries": 1, "invented": 2 }`). The correct option always comes from the source entry. Invented distractors are safety-checked (normalization, optional Ollama embeddings via `LH_PRACTICE_EMBED_MODEL`) and tagged `source: "invented"` on the item — they are never stored as entries.
+
+Translation subjects should set `sideLanguages` (e.g. `{ "front": "la", "back": "en" }`) so prompts and options stay on opposite sides.
+
 Visual subjects can define **media variants** (e.g. country `outline` vs `locator`). Each image-pick or label-pick item picks one variant for that card; all four options (and the label-pick prompt image) use that same variant. The checker rejects mixed variants.
 
 ```json

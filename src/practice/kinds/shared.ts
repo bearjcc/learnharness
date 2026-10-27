@@ -17,7 +17,7 @@ export function baseItem(
 		subjectId: entry.subjectId,
 		entryId: entry.entryId,
 		correctOptionId,
-		optionIds: optionEntries.map((e) => e.entryId),
+		optionIds: options.map((o) => o.id),
 		prompt,
 		options,
 		...(explain ? { explain } : {}),

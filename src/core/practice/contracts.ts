@@ -40,6 +40,15 @@ export interface PracticeMediaVariantConfig {
 	distractorBias?: "tags" | "similar-size" | "similar-shape";
 }
 
+export type EntryField = "front" | "back" | "media";
+
+export interface PracticeFacet {
+	field: EntryField;
+	valueKind: "text" | "image" | "audio";
+	lang?: string;
+	mediaVariant?: string;
+}
+
 export interface PracticeFsrsState {
 	due: string;
 	stability: number;
@@ -63,6 +72,14 @@ export interface PracticeSubject {
 	mediaVariants?: PracticeMediaVariantConfig;
 	/** Sandbox deck: no FSRS, stats, or graph; full deck served on every today fetch. */
 	sandbox?: boolean;
+	/** BCP-47 or short codes for translation picks (e.g. front `la`, back `en`). */
+	sideLanguages?: { front?: string; back?: string };
+	/** Optional shape checks on text options. */
+	formHeuristic?: { maxWordCountRatio?: number };
+	/** Mix of entry-sourced vs model-invented wrong answers (weights). */
+	distractors?: { fromEntries: number; invented: number };
+	/** Reject invented distractors above this embedding cosine similarity (default 0.85). */
+	embeddingMaxSimilarity?: number;
 	/** Built queue served to Choice (ISO date + items). */
 	dailyQueueDate?: string;
 	dailyQueue?: PracticeDailyItem[];
@@ -102,14 +119,16 @@ export interface PracticeDailyItem {
 }
 
 export type PracticeRenderPart =
-	| { type: "text"; text: string }
-	| { type: "image"; token: string }
-	| { type: "audio"; token: string };
+	| { type: "text"; text: string; facet?: PracticeFacet }
+	| { type: "image"; token: string; facet?: PracticeFacet }
+	| { type: "audio"; token: string; facet?: PracticeFacet };
+
+export type PracticeOptionSource = "entry" | "invented";
 
 export type PracticeOptionPart =
-	| { id: string; type: "text"; text: string }
-	| { id: string; type: "image"; token: string }
-	| { id: string; type: "audio"; token: string };
+	| { id: string; type: "text"; text: string; facet?: PracticeFacet; source?: PracticeOptionSource }
+	| { id: string; type: "image"; token: string; facet?: PracticeFacet; source?: PracticeOptionSource }
+	| { id: string; type: "audio"; token: string; facet?: PracticeFacet; source?: PracticeOptionSource };
 
 export interface PracticePickCard {
 	id: string;
