@@ -1,10 +1,10 @@
-import { readSubjects, upsertSubject } from "@/src/server";
+import { readSubjects, readSubjectsForApi, upsertSubject } from "@/src/server";
 import type { PracticeSubject } from "@/src/core";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-	return Response.json({ subjects: readSubjects() });
+	return Response.json({ subjects: readSubjectsForApi() });
 }
 
 export async function PUT(request: Request) {

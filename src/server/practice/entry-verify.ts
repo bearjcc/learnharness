@@ -2,6 +2,7 @@ import type { PracticeEntry, PracticeSubject } from "../../core/practice/contrac
 import { latinTermsMatch, normalizeLatinTerm } from "../../core/practice/latin-normalize.ts";
 import { loadCountryCatalog } from "../../practice/geography/countries-data.ts";
 import { answerSupportedByQuote, quoteMatchesTopic } from "../../core/practice/sources/claims.ts";
+import { drumKeyByEntryId } from "../../practice/drums/key-library.ts";
 import { grooveLibraryByEntryId, readGrooveAbc } from "../../practice/grooves/library.ts";
 import { practiceStore } from "../../store/practice.ts";
 import { readSourceCache } from "../../store/practice-sources.ts";
@@ -73,6 +74,18 @@ function verifyBuiltinGeography(entry: PracticeEntry, subject: PracticeSubject):
 		sourceId,
 		url: "builtin://geography",
 		quote: line,
+	});
+}
+
+function verifyBuiltinDrumKey(entry: PracticeEntry, subject: PracticeSubject): PracticeEntry | null {
+	const sourceId = builtinSourceId(subject, "drum-key");
+	if (!sourceId || entry.type !== "visual" || !entry.tags?.includes("drum-key")) return null;
+	const def = drumKeyByEntryId(entry.entryId);
+	if (!def) return null;
+	return confirmEntry(entry, entry.front.trim() || def.name, {
+		sourceId,
+		url: def.citation.url,
+		quote: def.citation.quote,
 	});
 }
 
@@ -216,6 +229,7 @@ export async function verifyEntryIdentity(
 
 	let updated: PracticeEntry | null = null;
 	if (builtinIds.has("geography")) updated = verifyBuiltinGeography(entry, subject);
+	if (!updated && builtinIds.has("drum-key")) updated = verifyBuiltinDrumKey(entry, subject);
 	if (!updated && builtinIds.has("grooves")) updated = verifyBuiltinGroove(entry, subject);
 	if (updated) {
 		logVerifyEvent(subjectId, entry.entryId, "verify_builtin_confirmed");

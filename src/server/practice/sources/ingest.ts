@@ -7,6 +7,7 @@ import { WIKIMEDIA_USER_AGENT, fetchWithRetry } from "../../../practice/wikimedi
 import { readSourceCache, writeSourceCache, type SourceChunkRecord } from "../../../store/practice-sources.ts";
 import { chunkText } from "./chunk-text.ts";
 import { fetchWikipediaParseRows } from "./wikipedia-parse.ts";
+import { builtinDrumKeyCorpusText } from "../../../practice/drums/key-library.ts";
 import { builtinGroovesCorpusText } from "../../../practice/grooves/library.ts";
 import { pdfExtract } from "../../../agent/subagents/pdf-ops.ts";
 import fsPromises from "node:fs/promises";
@@ -65,6 +66,13 @@ function loadBuiltinText(builtinId: string): { url: string; title: string; text:
 	}
 	if (builtinId === "grooves") {
 		return { url: "builtin://grooves", title: "Curated groove library", text: builtinGroovesCorpusText() };
+	}
+	if (builtinId === "drum-key") {
+		return {
+			url: "builtin://drum-key",
+			title: "Standard drum kit key",
+			text: builtinDrumKeyCorpusText(),
+		};
 	}
 	if (builtinId === "latin-phrases") {
 		return {

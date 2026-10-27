@@ -2,6 +2,7 @@ import type { PracticeEntry } from "../../core/practice/contracts.ts";
 import { practiceStore } from "../../store/practice.ts";
 import {
 	CURATED_GROOVE_LIBRARY,
+	grooveLevelForId,
 	grooveLibraryByEntryId,
 	readGrooveAbc,
 } from "./library.ts";
@@ -39,6 +40,7 @@ export function importGrooveLibrary(options: ImportGrooveLibraryOptions): {
 			identityScope: "entry",
 			explain: def.explain,
 			tags: ["drums", "curated-groove"],
+			level: grooveLevelForId(def.id),
 			origin: { kind: "import" },
 			status: "confirmed",
 			topicOnly: false,

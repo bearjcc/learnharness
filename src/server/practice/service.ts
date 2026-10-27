@@ -13,6 +13,7 @@ import { extensionForContentType, resolveCommonsImage } from "../../practice/wik
 import { newEntryId } from "./daily-build.ts";
 import { findDemoCard, loadDemoDeck, loadDemoSubject } from "../../practice/demo/load.ts";
 import { DEMO_SUBJECT_ID } from "../../practice/demo/paths.ts";
+import { computePracticeLevelProgress } from "../../core/practice/levels.ts";
 import { mergeSubjectPresets } from "./subject-presets.ts";
 import { penalizeSource } from "./sources/trust.ts";
 import { appendFlagEvent } from "../../store/practice-sources.ts";
@@ -115,9 +116,12 @@ export function recordAnswer(body: PracticeAnswerEvent): RecordAnswerResult {
 		practiceStore.appendAnswerEvent(body);
 		return { ok: true, undo: true };
 	}
-	practiceStore.appendAnswerEvent(body);
-	const entries = practiceStore.readEntries();
 	const cardEntryId = findEntryIdForCard(body.card_id, body.subject);
+	practiceStore.appendAnswerEvent({
+		...body,
+		...(cardEntryId ? { entry_id: cardEntryId } : {}),
+	});
+	const entries = practiceStore.readEntries();
 	const target = entries.find((e) => e.entryId === cardEntryId && e.subjectId === body.subject);
 	if (target && body.correct !== undefined) {
 		target.fsrs = applyFsrsReview(target, body.correct);
@@ -236,6 +240,22 @@ export function upsertSubject(subject: PracticeSubject): void {
 
 export function readSubjects(): PracticeSubject[] {
 	return mergeSubjects(practiceStore.readSubjects());
+}
+
+export function readSubjectsForApi(): Array<
+	PracticeSubject & { practiceProgress: import("../../core/practice/contracts.ts").PracticeSubjectProgress }
+> {
+	const subjects = readSubjects();
+	const entries = practiceStore.readEntries();
+	const answers = practiceStore.readAnswerEvents();
+	return subjects.map((s) => ({
+		...s,
+		practiceProgress: computePracticeLevelProgress(
+			s,
+			entries.filter((e) => e.subjectId === s.subjectId),
+			answers.filter((a) => a.subject === s.subjectId),
+		),
+	}));
 }
 
 export function mediaResponse(token: string): { bytes: Buffer; contentType: string } | null {

@@ -18,6 +18,12 @@ export interface CuratedGrooveDef {
 
 export const GROOVE_LIBRARY_DIR = path.join(ROOT, "samples", "grooves");
 
+const GROOVE_LEVEL_2 = new Set(["rock-beat", "four-on-the-floor", "half-time"]);
+
+export function grooveLevelForId(id: string): number {
+	return GROOVE_LEVEL_2.has(id) ? 2 : 3;
+}
+
 export const CURATED_GROOVE_LIBRARY: CuratedGrooveDef[] = [
 	{
 		id: "rock-beat",
