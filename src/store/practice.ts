@@ -8,6 +8,7 @@ import type {
 	PracticeEntryDecisionEvent,
 	PracticeSubject,
 } from "../core/practice/contracts.ts";
+import { migratePracticeEntries } from "../core/practice/entry-migrate.ts";
 
 function readJsonl<T>(file: string): T[] {
 	let raw: string;
@@ -55,7 +56,7 @@ export const practiceStore = {
 		writeJson(PRACTICE_FILES.subjects, subjects);
 	},
 	readEntries(): PracticeEntry[] {
-		return readJsonl<PracticeEntry>(PRACTICE_FILES.entries);
+		return migratePracticeEntries(readJsonl<PracticeEntry>(PRACTICE_FILES.entries));
 	},
 	writeEntries(entries: PracticeEntry[]): void {
 		fs.mkdirSync(path.dirname(PRACTICE_FILES.entries), { recursive: true });

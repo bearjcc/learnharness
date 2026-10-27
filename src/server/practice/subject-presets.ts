@@ -38,6 +38,7 @@ export const PRACTICE_SUBJECT_PRESETS: PracticeSubject[] = [
 				],
 			},
 		],
+		judgeModel: "koda",
 		requireReview: false,
 	},
 	{
@@ -52,6 +53,7 @@ export const PRACTICE_SUBJECT_PRESETS: PracticeSubject[] = [
 			distractorBias: "tags",
 		},
 		sources: [{ kind: "builtin", id: "geo-ne", builtinId: "geography", label: "Natural Earth" }],
+		judgeModel: "koda",
 		requireReview: false,
 	},
 	{
@@ -68,6 +70,7 @@ export const PRACTICE_SUBJECT_PRESETS: PracticeSubject[] = [
 				pages: ["Drum kit", "Percussion notation"],
 			},
 		],
+		judgeModel: "koda",
 		requireReview: false,
 	},
 	{
@@ -92,6 +95,7 @@ export const PRACTICE_SUBJECT_PRESETS: PracticeSubject[] = [
 				seedUrls: ["https://www.w3schools.com/js/"],
 			},
 		],
+		judgeModel: "koda",
 		requireReview: false,
 	},
 	{
@@ -109,6 +113,7 @@ export const PRACTICE_SUBJECT_PRESETS: PracticeSubject[] = [
 				pages: ["Oceania", "Flags of Oceania"],
 			},
 		],
+		judgeModel: "koda",
 		requireReview: false,
 	},
 ];
@@ -125,6 +130,7 @@ export function mergeSubjectPresets(subjects: PracticeSubject[]): PracticeSubjec
 				sources: cur.sources ?? preset.sources,
 				mediaVariants: cur.mediaVariants ?? preset.mediaVariants,
 				itemKinds: cur.itemKinds.length ? cur.itemKinds : preset.itemKinds,
+				judgeModel: cur.judgeModel ?? preset.judgeModel,
 			});
 		}
 	}

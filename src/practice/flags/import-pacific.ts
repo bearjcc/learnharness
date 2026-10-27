@@ -53,6 +53,9 @@ export async function importPacificFlags(
 			origin: { kind: "commons", pageTitle: row.commons },
 			status,
 			topicOnly: true,
+			group: `country:${row.iso}`,
+			groupLabel: row.name,
+			identityScope: "group",
 		});
 		imported++;
 	}

@@ -145,7 +145,7 @@ export interface PracticeSubject {
 	sources?: PracticeSourceConfig[];
 	/** When false (default), sourced items auto-confirm; when true, pending/confirm flow applies. */
 	requireReview?: boolean;
-	/** Local model id for citation support judge (defaults to writer model). */
+	/** Local model id for citation support judge (defaults to `koda`). */
 	judgeModel?: string;
 	/** Built queue served to Choice (ISO date + items). */
 	dailyQueueDate?: string;
@@ -171,6 +171,14 @@ export interface PracticeEntry {
 	/** Pending import: front is a topic hint; back is not trusted until sourced. */
 	topicOnly?: boolean;
 	citation?: PracticeEntryCitation;
+	/** Distractor equivalence group (e.g. `country=NZ` for multiple NZ flags). */
+	group?: string;
+	/** Label for group-level prompts (e.g. country name). */
+	groupLabel?: string;
+	/** `group` = ask for the group's primary identity; `entry` = ask for this specific row. */
+	identityScope?: "group" | "entry";
+	/** Optional sourced explanation shown after answer (never model-invented). */
+	explain?: string;
 }
 
 export interface PracticeDailyItem {
