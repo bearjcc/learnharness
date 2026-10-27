@@ -13,6 +13,9 @@ import { extensionForContentType, resolveCommonsImage } from "../../practice/wik
 import { newEntryId } from "./daily-build.ts";
 import { findDemoCard, loadDemoDeck, loadDemoSubject } from "../../practice/demo/load.ts";
 import { DEMO_SUBJECT_ID } from "../../practice/demo/paths.ts";
+import { mergeSubjectPresets } from "./subject-presets.ts";
+import { penalizeSource } from "./sources/trust.ts";
+import { appendFlagEvent } from "../../store/practice-sources.ts";
 
 export interface RecordAnswerResult {
 	ok: boolean;
@@ -23,9 +26,10 @@ export interface RecordAnswerResult {
 }
 
 function mergeSubjects(subjects: PracticeSubject[]): PracticeSubject[] {
+	const withPresets = mergeSubjectPresets(subjects);
 	const demo = loadDemoSubject();
-	if (subjects.some((s) => s.subjectId === DEMO_SUBJECT_ID)) return subjects;
-	return [...subjects, demo];
+	if (withPresets.some((s) => s.subjectId === DEMO_SUBJECT_ID)) return withPresets;
+	return [...withPresets, demo];
 }
 
 function subjectById(subjectId: string): PracticeSubject | undefined {
@@ -58,6 +62,43 @@ export function listTodayCards(subjectFilter?: string): PracticePickCard[] {
 
 export function recordAnswer(body: PracticeAnswerEvent): RecordAnswerResult {
 	const subject = subjectById(body.subject);
+	if (body.flag === "bad" && !body.undo && !isSandboxSubject(subject)) {
+		const events = practiceStore.readAnswerEvents();
+		if (events.some((e) => e.event_id === body.event_id)) return { ok: true };
+		practiceStore.appendAnswerEvent(body);
+		const entryId = findEntryIdForCard(body.card_id, body.subject);
+		const item = subject?.dailyQueue?.find((c) => c.id === body.card_id);
+		if (item?.citationSourceId) penalizeSource(item.citationSourceId);
+		appendFlagEvent({
+			event_id: body.event_id,
+			card_id: body.card_id,
+			subject: body.subject,
+			...(entryId ? { entry_id: entryId } : {}),
+			...(item?.citationSourceId ? { source_id: item.citationSourceId } : {}),
+			at: new Date().toISOString(),
+		});
+		if (entryId) {
+			const entries = practiceStore.readEntries();
+			const target = entries.find((e) => e.entryId === entryId && e.subjectId === body.subject);
+			if (target) {
+				target.status = "retired";
+				practiceStore.writeEntries(entries);
+			}
+		}
+		if (subject?.dailyQueue) {
+			const subjects = practiceStore.readSubjects();
+			const idx = subjects.findIndex((s) => s.subjectId === body.subject);
+			if (idx >= 0) {
+				const cur = subjects[idx]!;
+				subjects[idx] = {
+					...cur,
+					dailyQueue: cur.dailyQueue?.filter((c) => c.id !== body.card_id),
+				};
+				practiceStore.writeSubjects(subjects);
+			}
+		}
+		return { ok: true };
+	}
 	if (isSandboxSubject(subject)) {
 		const card = findDemoCard(body.card_id);
 		if (!card) return { ok: false, error: "unknown card" };
@@ -162,12 +203,15 @@ export async function importEntries(
 				},
 			};
 		}
+		const subj = mergeSubjects(practiceStore.readSubjects()).find((s) => s.subjectId === row.subjectId);
+		const topicOnly = Boolean(subj?.sources?.length && subj.requireReview !== true && !row.back?.trim());
 		entries.push({
 			subjectId: row.subjectId,
 			entryId,
 			type: row.type,
 			front: row.front,
 			back: row.back,
+			...(topicOnly ? { topicOnly: true } : {}),
 			...(row.aliases ? { aliases: row.aliases } : {}),
 			...(row.tags ? { tags: row.tags } : {}),
 			...(media ? { media } : {}),

@@ -49,6 +49,67 @@ export interface PracticeFacet {
 	mediaVariant?: string;
 }
 
+export type PracticeSourceKind = "wikipedia" | "site" | "pdf" | "builtin";
+
+export interface PracticeSourceBase {
+	id: string;
+	label?: string;
+	/** Cache refresh interval in hours (default 168). */
+	ttlHours?: number;
+}
+
+export interface PracticeWikipediaSource extends PracticeSourceBase {
+	kind: "wikipedia";
+	language?: string;
+	pages?: string[];
+	categories?: string[];
+}
+
+export interface PracticeSiteSource extends PracticeSourceBase {
+	kind: "site";
+	allowDomains: string[];
+	seedUrls?: string[];
+	sitemapUrl?: string;
+}
+
+export interface PracticePdfSource extends PracticeSourceBase {
+	kind: "pdf";
+	/** Path relative to LH_DATA_DIR or absolute. */
+	path: string;
+}
+
+export interface PracticeBuiltinSource extends PracticeSourceBase {
+	kind: "builtin";
+	/** e.g. geography, grooves, latin-phrases */
+	builtinId: string;
+}
+
+export type PracticeSourceConfig =
+	| PracticeWikipediaSource
+	| PracticeSiteSource
+	| PracticePdfSource
+	| PracticeBuiltinSource;
+
+export interface PracticeEntryCitation {
+	sourceId: string;
+	url?: string;
+	quote: string;
+}
+
+export interface PracticeCardSource {
+	url: string;
+	label: string;
+}
+
+export interface PracticeFlagEvent {
+	event_id: string;
+	card_id: string;
+	subject: string;
+	entry_id?: string;
+	source_id?: string;
+	at: string;
+}
+
 export interface PracticeFsrsState {
 	due: string;
 	stability: number;
@@ -80,6 +141,12 @@ export interface PracticeSubject {
 	distractors?: { fromEntries: number; invented: number };
 	/** Reject invented distractors above this embedding cosine similarity (default 0.85). */
 	embeddingMaxSimilarity?: number;
+	/** Verified sources for auto-sourced quiz items (see docs/practice.md). */
+	sources?: PracticeSourceConfig[];
+	/** When false (default), sourced items auto-confirm; when true, pending/confirm flow applies. */
+	requireReview?: boolean;
+	/** Local model id for citation support judge (defaults to writer model). */
+	judgeModel?: string;
 	/** Built queue served to Choice (ISO date + items). */
 	dailyQueueDate?: string;
 	dailyQueue?: PracticeDailyItem[];
@@ -101,6 +168,9 @@ export interface PracticeEntry {
 	propositionId?: string;
 	status: PracticeEntryStatus;
 	fsrs?: PracticeFsrsState;
+	/** Pending import: front is a topic hint; back is not trusted until sourced. */
+	topicOnly?: boolean;
+	citation?: PracticeEntryCitation;
 }
 
 export interface PracticeDailyItem {
@@ -116,6 +186,9 @@ export interface PracticeDailyItem {
 	tags?: string[];
 	/** Media variant used for all images in this item (image-pick / label-pick). */
 	mediaVariant?: string;
+	/** Shown in Choice after answer (link to verified source). */
+	source?: PracticeCardSource;
+	citationSourceId?: string;
 }
 
 export type PracticeRenderPart =
@@ -139,6 +212,7 @@ export interface PracticePickCard {
 	answer: string;
 	explain?: string;
 	tags?: string[];
+	source?: PracticeCardSource;
 }
 
 export interface PracticeAnswerEvent {
@@ -150,6 +224,8 @@ export interface PracticeAnswerEvent {
 	ms?: number;
 	at?: string;
 	undo?: boolean;
+	/** User-reported bad card (retires entry, lowers source trust). */
+	flag?: "bad";
 }
 
 export interface PracticeEntryDecisionEvent {

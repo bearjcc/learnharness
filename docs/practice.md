@@ -1,6 +1,8 @@
 # Practice quiz engine (Choice)
 
-LearnHarness builds daily multiple-choice cards for the **Choice** phone app. The server stores subjects and answer sources; local models (Ollama via provider `ollama`) write question wording only. Correct answers and distractors always come from **confirmed** entries you approved.
+LearnHarness builds daily multiple-choice cards for the **Choice** phone app. Subjects can use **verified sources** (Wikipedia, allowlisted sites, local PDFs, or built-in datasets) so the writer cites cached passages and items auto-confirm when quote + judge gates pass. Legacy subjects with `requireReview: true` still use the pending/keep flow.
+
+Without sources, local models (Ollama) write question wording only; correct answers and distractors come from **confirmed** entries.
 
 ## Sandbox demo (`demo`)
 
@@ -105,11 +107,13 @@ Set `LH_PRACTICE_SKIP_LLM=1` to build cards without calling the model (wording d
 |-------|---------|
 | `GET /api/practice/today?subject=` | Today's cards (mixed ~5 per subject if subject omitted) |
 | `GET /api/practice/media/:token` | Cached svg/png/jpg/webp/audio |
-| `POST /api/practice/answers` | Record or undo an answer (idempotent `event_id`) |
+| `POST /api/practice/answers` | Record or undo an answer; `{ flag: "bad" }` retires the card/entry and lowers source trust |
 | `GET /api/entries/pending?subject=` | Pending entries for keep/reject |
 | `POST /api/entries/:id/decision` | `{ "event_id", "value": "keep" \| "reject" }` |
 | `POST /api/entries/import` | Bulk import |
+| `POST /api/entries/import-flags` | South Pacific flag images (Commons) for subject `flags` |
 | `POST /api/practice/daily-build` | Build today's queues |
+| `GET /api/practice/flags` | Flag audit log + per-source trust scores |
 | `GET /api/practice/subjects` | List subjects |
 | `PUT /api/practice/subjects` | Create/update subject |
 
@@ -141,3 +145,11 @@ Per manual Ollama model in settings (`localInference.manualModels[]`):
 | `LH_PRACTICE_SKIP_LLM` | Skip model calls in daily build |
 
 Trusted single-user server (e.g. Tailscale). No separate auth layer on these routes.
+
+## Sourced subjects
+
+Configure `sources` on a subject (see presets merged for `latin`, `geography`, `drums`, `js-ts`, `flags`). Fetched text is chunked into `practice/source-cache.json` with a TTL. Daily build retrieves passages (BM25, trust-weighted), asks the writer for `{ prompt, answer, citation }`, verifies the quote verbatim in cache, and runs a yes/no judge. Passing items are auto-confirmed; cards expose `source: { url, label }` for Choice.
+
+Preset **`flags`** (*Flags of the South Pacific*) uses Wikipedia plus Commons flag images (`mediaVariants.enabled: ["flag"]`). Import with `POST /api/entries/import-flags` (optional `{ "subjectId": "flags" }`).
+
+Pending imports on sourced subjects are **topic hints** (`topicOnly`); their `back` field is not used as an answer until sourced.
