@@ -14,6 +14,7 @@ const ABC_INSTRUMENT: Record<string, string> = {
 const ABC_HEADER = `%%percmap B 36 normal
 %%percmap c 38 normal
 %%percmap g 42 x
+%%score {1 2}
 `;
 
 export function isAbcGrooveText(raw: string): boolean {

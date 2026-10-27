@@ -1,12 +1,13 @@
 import { fsrsDue } from "../../core/practice/fsrs.ts";
 import { isSandboxSubject } from "../../core/practice/sandbox.ts";
-import type { PracticeEntry, PracticeSubject } from "../../core/practice/contracts.ts";
+import type { PracticeDailyItem, PracticeEntry, PracticeSubject } from "../../core/practice/contracts.ts";
 import { practiceStore } from "../../store/practice.ts";
 import { buildItemForEntry } from "./engine.ts";
 import { withGpuBrokerLease } from "./gpu-broker.ts";
 import { LocalInferenceHttpError } from "./local-complete.ts";
 import { getGraph } from "../../core/graph.ts";
 import { graphStore } from "../../store/graph.ts";
+import { mergeSubjectPresets } from "./subject-presets.ts";
 import { nanoid } from "nanoid";
 
 export interface DailyBuildResult {
@@ -20,7 +21,12 @@ function todayIso(): string {
 	return new Date().toISOString().slice(0, 10);
 }
 
-function pickDueEntries(
+function buildBudgetMs(): number {
+	const raw = Number(process.env.LH_PRACTICE_BUILD_BUDGET_MS);
+	return Number.isFinite(raw) && raw > 0 ? raw : 20 * 60_000;
+}
+
+export function pickDueEntries(
 	subject: PracticeSubject,
 	entries: PracticeEntry[],
 	limit: number,
@@ -63,6 +69,18 @@ async function proposeGraphEntries(subject: PracticeSubject, entries: PracticeEn
 	return added;
 }
 
+function persistSubjectQueue(subject: PracticeSubject, built: PracticeDailyItem[]): void {
+	const subjects = practiceStore.readSubjects();
+	const idx = subjects.findIndex((s) => s.subjectId === subject.subjectId);
+	if (idx < 0) return;
+	subjects[idx] = {
+		...subjects[idx]!,
+		dailyQueue: built,
+		dailyQueueDate: todayIso(),
+	};
+	practiceStore.writeSubjects(subjects);
+}
+
 async function buildSubjectQueue(
 	subject: PracticeSubject,
 	modelId?: string,
@@ -70,11 +88,11 @@ async function buildSubjectQueue(
 ): Promise<DailyBuildResult> {
 	const allEntries = practiceStore.readEntries();
 	const candidates = pickDueEntries(subject, allEntries, subject.dailyCards * 2);
-	const built: import("../../core/practice/contracts.ts").PracticeDailyItem[] = [];
+	const built: PracticeDailyItem[] = [];
 	for (const entry of candidates) {
 		if (built.length >= subject.dailyCards) break;
 		try {
-			const item = await buildItemForEntry(subject, entry, allEntries, modelId, fetchImpl);
+			const item = await buildItemForEntry(subject, entry, practiceStore.readEntries(), modelId, fetchImpl);
 			if (item) built.push(item);
 		} catch (err) {
 			if (err instanceof LocalInferenceHttpError && err.status === 503) {
@@ -82,17 +100,7 @@ async function buildSubjectQueue(
 			}
 		}
 	}
-	const subjects = practiceStore.readSubjects();
-	const idx = subjects.findIndex((s) => s.subjectId === subject.subjectId);
-	if (idx >= 0) {
-		const current = subjects[idx]!;
-		subjects[idx] = {
-			...current,
-			dailyQueue: built,
-			dailyQueueDate: todayIso(),
-		};
-		practiceStore.writeSubjects(subjects);
-	}
+	persistSubjectQueue(subject, built);
 	const proposed = await proposeGraphEntries(subject, allEntries);
 	return { subjectId: subject.subjectId, built: built.length, proposed, stopped503: false };
 }
@@ -106,15 +114,78 @@ export async function runDailyBuildForSubject(
 }
 
 export async function runDailyBuildAll(modelId?: string, fetchImpl?: typeof fetch): Promise<DailyBuildResult[]> {
-	const subjects = practiceStore.readSubjects().filter((s) => s.enabled && !isSandboxSubject(s));
-	const results: DailyBuildResult[] = [];
+	const subjects = mergeSubjectPresets(practiceStore.readSubjects()).filter(
+		(s) => s.enabled && !isSandboxSubject(s),
+	);
+	const results: DailyBuildResult[] = subjects.map((s) => ({
+		subjectId: s.subjectId,
+		built: 0,
+		proposed: 0,
+		stopped503: false,
+	}));
+	const resultById = new Map(results.map((r) => [r.subjectId, r]));
+
+	interface Slot {
+		subject: PracticeSubject;
+		candidates: PracticeEntry[];
+		cursor: number;
+		built: PracticeDailyItem[];
+	}
+
+	const slots: Slot[] = subjects.map((subject) => ({
+		subject,
+		candidates: pickDueEntries(subject, practiceStore.readEntries(), subject.dailyCards * 3),
+		cursor: 0,
+		built: [],
+	}));
+
+	const deadline = Date.now() + buildBudgetMs();
+	let stopped503 = false;
+
 	const wrapped = await withGpuBrokerLease(async () => {
-		for (const subject of subjects) {
-			const r = await buildSubjectQueue(subject, modelId, fetchImpl);
-			results.push(r);
-			if (r.stopped503) break;
+		while (Date.now() < deadline && !stopped503) {
+			let progressed = false;
+			for (const slot of slots) {
+				if (slot.built.length >= slot.subject.dailyCards) continue;
+				while (slot.cursor < slot.candidates.length && slot.built.length < slot.subject.dailyCards) {
+					const entry = slot.candidates[slot.cursor++]!;
+					try {
+						const item = await buildItemForEntry(
+							slot.subject,
+							entry,
+							practiceStore.readEntries(),
+							modelId,
+							fetchImpl,
+						);
+						if (item) {
+							slot.built.push(item);
+							progressed = true;
+							break;
+						}
+					} catch (err) {
+						if (err instanceof LocalInferenceHttpError && err.status === 503) {
+							stopped503 = true;
+							break;
+						}
+					}
+				}
+			}
+			const allAtCap = slots.every((s) => s.built.length >= s.subject.dailyCards);
+			const allExhausted = slots.every(
+				(s) => s.built.length >= s.subject.dailyCards || s.cursor >= s.candidates.length,
+			);
+			if (!progressed && (allAtCap || allExhausted)) break;
+		}
+
+		for (const slot of slots) {
+			persistSubjectQueue(slot.subject, slot.built);
+			const r = resultById.get(slot.subject.subjectId)!;
+			r.built = slot.built.length;
+			r.stopped503 = stopped503;
+			r.proposed = await proposeGraphEntries(slot.subject, practiceStore.readEntries());
 		}
 	}, fetchImpl);
+
 	return wrapped.result ?? results;
 }
 

@@ -6,6 +6,7 @@ import { loadCountryCatalog } from "../../../practice/geography/countries-data.t
 import { WIKIMEDIA_USER_AGENT, fetchWithRetry } from "../../../practice/wikimedia.ts";
 import { readSourceCache, writeSourceCache, type SourceChunkRecord } from "../../../store/practice-sources.ts";
 import { chunkText } from "./chunk-text.ts";
+import { fetchWikipediaParseRows } from "./wikipedia-parse.ts";
 import { pdfExtract } from "../../../agent/subagents/pdf-ops.ts";
 import fsPromises from "node:fs/promises";
 
@@ -30,6 +31,11 @@ async function fetchWikipediaPages(
 	const titles = [...(source.pages ?? [])];
 	const out: SourceChunkRecord[] = [];
 	for (const title of titles) {
+		const rows = await fetchWikipediaParseRows(title, source.id, lang, fetchImpl);
+		if (rows.length) {
+			out.push(...rows);
+			continue;
+		}
 		const url = `${api}?action=query&format=json&prop=extracts&explaintext=1&titles=${encodeURIComponent(title)}`;
 		const res = await fetchWithRetry(url, { headers: { "User-Agent": WIKIMEDIA_USER_AGENT } }, fetchImpl);
 		if (!res.ok) continue;

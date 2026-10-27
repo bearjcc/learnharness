@@ -37,14 +37,41 @@ function finalizeGrooveSvg(svgHtml: string, widthPx: number): string {
 	source.setAttribute("fill", INK);
 	source.setAttribute("stroke", INK);
 
-	const origW = Number.parseFloat(source.getAttribute("width") ?? "0") || widthPx;
-	const origH = Number.parseFloat(source.getAttribute("height") ?? "0") || widthPx * 0.5;
-	const pad = Math.max(6, widthPx * 0.05);
+	let bboxX = 0;
+	let bboxY = 0;
+	let bboxW = Number.parseFloat(source.getAttribute("width") ?? "0") || widthPx;
+	let bboxH = Number.parseFloat(source.getAttribute("height") ?? "0") || widthPx * 0.5;
+	const vbAttr = source.getAttribute("viewBox");
+	if (vbAttr) {
+		const parts = vbAttr.split(/\s+/).map(Number);
+		if (parts.length === 4 && parts.every((n) => Number.isFinite(n))) {
+			bboxX = parts[0]!;
+			bboxY = parts[1]!;
+			bboxW = parts[2]!;
+			bboxH = parts[3]!;
+		}
+	}
+	try {
+		const g = source.cloneNode(true) as SVGSVGElement;
+		document.body.appendChild(g);
+		const box = (g as unknown as { getBBox?: () => DOMRect }).getBBox?.();
+		if (box && box.width > 0 && box.height > 0) {
+			bboxX = box.x;
+			bboxY = box.y;
+			bboxW = box.width;
+			bboxH = box.height;
+		}
+		g.remove();
+	} catch {
+		/* jsdom may lack full SVG DOM */
+	}
+
+	const pad = Math.max(8, widthPx * 0.06);
 	const targetW = widthPx;
-	const targetH = Math.max(Math.round((origH / origW) * targetW), Math.round(widthPx * 0.35));
-	const scale = Math.min((targetW - 2 * pad) / origW, (targetH - 2 * pad) / origH);
-	const offsetX = (targetW - origW * scale) / 2;
-	const offsetY = (targetH - origH * scale) / 2;
+	const targetH = Math.max(Math.round((bboxH / bboxW) * targetW), Math.round(widthPx * 0.45));
+	const scale = Math.min((targetW - 2 * pad) / bboxW, (targetH - 2 * pad) / bboxH);
+	const offsetX = pad - bboxX * scale;
+	const offsetY = pad - bboxY * scale;
 
 	const out = document.createElementNS(NS, "svg");
 	out.setAttribute("xmlns", NS);

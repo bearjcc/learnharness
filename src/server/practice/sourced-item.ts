@@ -7,7 +7,7 @@ import { isTopicHintEntry } from "../../core/practice/topic-hint.ts";
 import { quoteAppearsInChunks, parseJudgeYesNo } from "../../core/practice/sources/verify.ts";
 import { practiceStore } from "../../store/practice.ts";
 import { appendSourcedBuildLog } from "../../store/practice-sources.ts";
-import { completeLocalJson } from "./local-complete.ts";
+import { completeLocalJsonDetailed, completeLocalJson } from "./local-complete.ts";
 import { buildItemForEntry } from "./engine.ts";
 import { ensureSubjectSourcesCached } from "./sources/ingest.ts";
 import { retrievePassages } from "./sources/retrieve.ts";
@@ -103,7 +103,7 @@ export async function trySourcedItemForEntry(
 	}
 
 	const context = passages.map((p, i) => `[${i + 1}] (${p.sourceId}) ${p.url}\n${p.text}`).join("\n\n");
-	const parsed = await completeLocalJson(
+	const writerResult = await completeLocalJsonDetailed(
 		modelId!,
 		[
 			{
@@ -119,8 +119,13 @@ export async function trySourcedItemForEntry(
 		WRITER_SCHEMA,
 		fetchImpl,
 	);
+	const parsed = writerResult?.data;
+	if (writerResult?.finishReason === "length") {
+		logDrop(subject.subjectId, entry.entryId, "writer_truncated", writerResult.rawSnippet);
+		return null;
+	}
 	if (!parsed || typeof parsed.answer !== "string" || !parsed.citation || typeof parsed.citation.quote !== "string") {
-		logDrop(subject.subjectId, entry.entryId, "writer_shape");
+		logDrop(subject.subjectId, entry.entryId, "writer_shape", writerResult?.rawSnippet);
 		return null;
 	}
 
@@ -168,6 +173,12 @@ export async function trySourcedItemForEntry(
 	};
 }
 
-function logDrop(subjectId: string, entryId: string, reason: string): void {
-	appendSourcedBuildLog({ at: new Date().toISOString(), subjectId, entryId, reason });
+function logDrop(subjectId: string, entryId: string, reason: string, rawSnippet?: string): void {
+	appendSourcedBuildLog({
+		at: new Date().toISOString(),
+		subjectId,
+		entryId,
+		reason,
+		...(rawSnippet ? { rawSnippet } : {}),
+	});
 }
