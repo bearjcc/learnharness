@@ -26,6 +26,7 @@ export function dailyItemToPickCard(item: PracticeDailyItem): PracticePickCard {
 		answer: item.correctOptionId,
 		...(item.explain ? { explain: item.explain } : {}),
 		...(item.tags?.length ? { tags: item.tags } : {}),
+		...(item.source ? { source: item.source } : {}),
 	};
 }
 

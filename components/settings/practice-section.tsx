@@ -56,7 +56,11 @@ export function PracticeSection() {
 			</p>
 			{subjects.map((s) => (
 				<div key={s.subjectId} className="flex items-center justify-between gap-2 px-1 py-1 text-xs" data-testid={`practice-subject-${s.subjectId}`}>
-					<span>{s.title} ({s.subjectId}) · {s.dailyCards}/day</span>
+					<span>
+						{s.title} ({s.subjectId}) · {s.dailyCards}/day
+						{s.sources?.length ? ` · ${s.sources.length} source(s)` : ""}
+						{s.requireReview ? " · review on" : ""}
+					</span>
 					<button type="button" className="underline" onClick={() => void toggleEnabled(s)}>
 						{s.enabled ? "Disable" : "Enable"}
 					</button>

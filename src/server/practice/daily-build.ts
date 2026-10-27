@@ -20,11 +20,20 @@ function todayIso(): string {
 	return new Date().toISOString().slice(0, 10);
 }
 
-function pickDueEntries(subjectId: string, entries: PracticeEntry[], limit: number): PracticeEntry[] {
-	const confirmed = entries.filter((e) => e.subjectId === subjectId && e.status === "confirmed");
+function pickDueEntries(
+	subject: PracticeSubject,
+	entries: PracticeEntry[],
+	limit: number,
+): PracticeEntry[] {
+	const forSubject = entries.filter((e) => e.subjectId === subject.subjectId);
+	const topics = forSubject.filter((e) => e.status === "pending" && e.topicOnly);
+	const confirmed = forSubject.filter((e) => e.status === "confirmed");
 	const due = confirmed.filter((e) => fsrsDue(e));
 	const rest = confirmed.filter((e) => !fsrsDue(e));
-	return [...due, ...rest].slice(0, limit);
+	const ordered = subject.sources?.length
+		? [...topics, ...due, ...rest]
+		: [...due, ...rest];
+	return ordered.slice(0, limit);
 }
 
 async function proposeGraphEntries(subject: PracticeSubject, entries: PracticeEntry[], max = 10): Promise<number> {
@@ -60,7 +69,7 @@ async function buildSubjectQueue(
 	fetchImpl?: typeof fetch,
 ): Promise<DailyBuildResult> {
 	const allEntries = practiceStore.readEntries();
-	const candidates = pickDueEntries(subject.subjectId, allEntries, subject.dailyCards * 2);
+	const candidates = pickDueEntries(subject, allEntries, subject.dailyCards * 2);
 	const built: import("../../core/practice/contracts.ts").PracticeDailyItem[] = [];
 	for (const entry of candidates) {
 		if (built.length >= subject.dailyCards) break;
@@ -78,11 +87,7 @@ async function buildSubjectQueue(
 	if (idx >= 0) {
 		const current = subjects[idx]!;
 		subjects[idx] = {
-			subjectId: current.subjectId,
-			title: current.title,
-			enabled: current.enabled,
-			dailyCards: current.dailyCards,
-			itemKinds: current.itemKinds,
+			...current,
 			dailyQueue: built,
 			dailyQueueDate: todayIso(),
 		};

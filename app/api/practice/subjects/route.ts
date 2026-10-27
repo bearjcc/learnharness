@@ -19,6 +19,11 @@ export async function PUT(request: Request) {
 		dailyCards: body.dailyCards ?? 10,
 		itemKinds: Array.isArray(body.itemKinds) ? body.itemKinds : [],
 		...(body.mediaVariants ? { mediaVariants: body.mediaVariants } : {}),
+		...(body.sources ? { sources: body.sources } : {}),
+		...(body.requireReview !== undefined ? { requireReview: body.requireReview } : {}),
+		...(body.judgeModel ? { judgeModel: body.judgeModel } : {}),
+		...(body.sideLanguages ? { sideLanguages: body.sideLanguages } : {}),
+		...(body.distractors ? { distractors: body.distractors } : {}),
 	});
 	return Response.json({ subjects: readSubjects() });
 }

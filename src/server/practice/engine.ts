@@ -9,6 +9,8 @@ import { practiceStore } from "../../store/practice.ts";
 import { completeLocalJson } from "./local-complete.ts";
 import { embedTextsOllama } from "./embeddings.ts";
 import type { EmbedFn } from "../../core/practice/invented-distractors.ts";
+import { isTopicHintEntry } from "../../core/practice/topic-hint.ts";
+import { subjectUsesSourcing, trySourcedItemForEntry } from "./sourced-item.ts";
 
 export interface BuildItemOptions {
 	embed?: EmbedFn;
@@ -38,6 +40,12 @@ export async function buildItemForEntry(
 	fetchImpl?: typeof fetch,
 	opts: BuildItemOptions = {},
 ): Promise<PracticeDailyItem | null> {
+	if (subjectUsesSourcing(subject)) {
+		const sourced = await trySourcedItemForEntry(subject, entry, allEntries, modelId, fetchImpl);
+		if (sourced) return sourced;
+		if (isTopicHintEntry(entry)) return null;
+	}
+
 	const kindIds = subject.itemKinds.length ? subject.itemKinds : applicableKinds(entry).map((k) => k.kind);
 	const kind = kindIds.map((id) => kindFor(entry, id)).find(Boolean);
 	if (!kind) return null;

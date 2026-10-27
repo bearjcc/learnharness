@@ -53,10 +53,12 @@ describe("standalone JavaScript tracing exclusions and native workaround policy"
 			"node_modules/gcp-metadata/**/*",
 			"node_modules/json-bigint/**/*",
 			"node_modules/bignumber.js/**/*",
+			"node_modules/world-atlas/**/*.json",
+			"node_modules/world-countries/data/**/*",
 		]);
 	});
 	it("limits the workaround to its three packages, never learner data or unrelated dependencies", () => {
-		const closure = nextConfig.outputFileTracingIncludes!["*"]!.slice(-3);
+		const closure = nextConfig.outputFileTracingIncludes!["*"]!.slice(-5, -2);
 		const included = picomatch(closure, { dot: true });
 		for (const file of ["node_modules/gcp-metadata/build/src/index.js", "node_modules/json-bigint/lib/parse.js", "node_modules/bignumber.js/bignumber.js"]) assert.equal(included(file), true, file);
 		for (const file of ["data/private.json", "nested/data/private.json", "auth.json", ".env.local", "node_modules/unrelated/runtime.js", "node_modules/gcp-metadata-lookalike/index.js"]) assert.equal(included(file), false, file);

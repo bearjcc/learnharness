@@ -28,6 +28,10 @@ export const PRACTICE_FILES = {
 	entryDecisions: path.join(PRACTICE_DIR, "entry-decisions.jsonl"),
 	dailyRuns: path.join(PRACTICE_DIR, "daily-runs.jsonl"),
 	mediaDir: path.join(PRACTICE_DIR, "media"),
+	sourceCache: path.join(PRACTICE_DIR, "source-cache.json"),
+	sourceTrust: path.join(PRACTICE_DIR, "source-trust.json"),
+	flagEvents: path.join(PRACTICE_DIR, "flag-events.jsonl"),
+	sourcedBuildLog: path.join(PRACTICE_DIR, "sourced-build-log.jsonl"),
 } as const;
 
 export const PATHS = {
