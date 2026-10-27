@@ -74,6 +74,7 @@ export * from "./session-navigation.ts";
 // /api/keys routes built on it).
 export * from "./auth-keys.ts";
 export * from "./local-inference.ts";
+export * from "./practice/contracts.ts";
 // keyboard.ts: the shortcut registry + binding normalization (pure, browser-safe).
 export * from "./keyboard.ts";
 export * from "./coverage.ts";

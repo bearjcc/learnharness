@@ -11,10 +11,24 @@ export const LOCAL_INFERENCE_API_KEY_ENV = "LH_OLLAMA_API_KEY";
 
 export const LOCAL_INFERENCE_LABEL = "Ollama";
 
+/** JSON Schema object sent as OpenAI-style response_format (Ollama /v1). */
+export type LocalInferenceJsonSchema = Record<string, unknown>;
+
 /** One manually entered model when discovery is unavailable. */
 export interface LocalInferenceManualModel {
 	id: string;
 	name?: string;
+	/** Ollama: disable thinking so the model returns content (default false when unset). */
+	think?: boolean;
+	maxTokens?: number;
+	format?: LocalInferenceJsonSchema;
+}
+
+/** Per-request overrides resolved for a configured model id. */
+export interface LocalInferenceModelRequestOptions {
+	think?: boolean;
+	maxTokens?: number;
+	format?: LocalInferenceJsonSchema;
 }
 
 /** Persisted non-secret options (settings.json `localInference` section). */
@@ -155,12 +169,35 @@ export function sanitizeLocalInferenceSettings(raw: unknown): LocalInferenceSett
 			const id = (entry as { id?: unknown }).id;
 			if (typeof id !== "string" || !id.trim()) continue;
 			const name = (entry as { name?: unknown }).name;
+			const think = (entry as { think?: unknown }).think;
+			const maxTokens = (entry as { maxTokens?: unknown }).maxTokens;
+			const format = (entry as { format?: unknown }).format;
 			manual.push({
 				id: id.trim(),
 				...(typeof name === "string" && name.trim() ? { name: name.trim() } : {}),
+				...(typeof think === "boolean" ? { think } : {}),
+				...(typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0
+					? { maxTokens: Math.floor(maxTokens) }
+					: {}),
+				...(format && typeof format === "object" && !Array.isArray(format)
+					? { format: format as LocalInferenceJsonSchema }
+					: {}),
 			});
 		}
 		if (manual.length) out.manualModels = manual;
 	}
 	return out;
+}
+
+export function resolveLocalModelRequestOptions(
+	modelId: string,
+	manualModels: readonly LocalInferenceManualModel[],
+): LocalInferenceModelRequestOptions {
+	const row = manualModels.find((m) => m.id === modelId);
+	if (!row) return { think: false };
+	return {
+		think: row.think ?? false,
+		...(row.maxTokens !== undefined ? { maxTokens: row.maxTokens } : {}),
+		...(row.format !== undefined ? { format: row.format } : {}),
+	};
 }
