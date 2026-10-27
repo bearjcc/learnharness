@@ -9,6 +9,10 @@ import { getGraph } from "../../core/graph.ts";
 import { graphStore } from "../../store/graph.ts";
 import { mergeSubjectPresets } from "./subject-presets.ts";
 import { nanoid } from "nanoid";
+import {
+	computePracticeLevelProgress,
+	entryAllowedForDeal,
+} from "../../core/practice/levels.ts";
 
 export interface DailyBuildResult {
 	subjectId: string;
@@ -30,8 +34,10 @@ export function pickDueEntries(
 	subject: PracticeSubject,
 	entries: PracticeEntry[],
 	limit: number,
+	opts?: { answers?: import("../../core/practice/contracts.ts").PracticeAnswerEvent[] },
 ): PracticeEntry[] {
 	const forSubject = entries.filter((e) => e.subjectId === subject.subjectId);
+	const progress = computePracticeLevelProgress(subject, forSubject, opts?.answers ?? []);
 	const topics = forSubject.filter((e) => e.status === "pending" && e.topicOnly);
 	const confirmed = forSubject.filter((e) => e.status === "confirmed");
 	const due = confirmed.filter((e) => fsrsDue(e));
@@ -39,7 +45,10 @@ export function pickDueEntries(
 	const ordered = subject.sources?.length
 		? [...topics, ...due, ...rest]
 		: [...due, ...rest];
-	return ordered.slice(0, limit);
+	const allowed = ordered.filter((e) =>
+		entryAllowedForDeal(e, progress, subject, `${subject.subjectId}:${e.entryId}`),
+	);
+	return allowed.slice(0, limit);
 }
 
 async function proposeGraphEntries(subject: PracticeSubject, entries: PracticeEntry[], max = 10): Promise<number> {
@@ -87,7 +96,8 @@ async function buildSubjectQueue(
 	fetchImpl?: typeof fetch,
 ): Promise<DailyBuildResult> {
 	const allEntries = practiceStore.readEntries();
-	const candidates = pickDueEntries(subject, allEntries, subject.dailyCards * 2);
+	const answers = practiceStore.readAnswerEvents();
+	const candidates = pickDueEntries(subject, allEntries, subject.dailyCards * 2, { answers });
 	const built: PracticeDailyItem[] = [];
 	for (const entry of candidates) {
 		if (built.length >= subject.dailyCards) break;
@@ -132,9 +142,12 @@ export async function runDailyBuildAll(modelId?: string, fetchImpl?: typeof fetc
 		built: PracticeDailyItem[];
 	}
 
+	const answers = practiceStore.readAnswerEvents();
 	const slots: Slot[] = subjects.map((subject) => ({
 		subject,
-		candidates: pickDueEntries(subject, practiceStore.readEntries(), subject.dailyCards * 3),
+		candidates: pickDueEntries(subject, practiceStore.readEntries(), subject.dailyCards * 3, {
+			answers,
+		}),
 		cursor: 0,
 		built: [],
 	}));

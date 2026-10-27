@@ -1,7 +1,7 @@
 import type { PracticeEntry, PracticeSubject } from "./contracts.ts";
 import { entryHasMediaVariant } from "./media-variants.ts";
 
-export type DistractorBias = "tags" | "similar-size" | "similar-shape";
+export type DistractorBias = "tags" | "similar-size" | "similar-shape" | "staff-neighbor";
 
 export interface DistractorOptions {
 	/** Require this media variant on every distractor. */
@@ -22,6 +22,13 @@ export function tagOverlapScore(a: readonly string[], b: readonly string[]): num
 }
 
 /** Pick `count` distractors from confirmed peers, nearest tags first. */
+function staffPosTag(entry: PracticeEntry): number | null {
+	const tag = entry.tags?.find((t) => t.startsWith("staff-pos:"));
+	if (!tag) return null;
+	const n = Number(tag.slice("staff-pos:".length));
+	return Number.isFinite(n) ? n : null;
+}
+
 function areaTag(entry: PracticeEntry): number | null {
 	const tag = entry.tags?.find((t) => t.startsWith("geo-area:"));
 	if (!tag) return null;
@@ -43,6 +50,11 @@ function similarityScore(source: PracticeEntry, other: PracticeEntry, bias: Dist
 		if (ar && br) {
 			return -Math.abs(Number(ar.slice(9)) - Number(br.slice(9)));
 		}
+	}
+	if (bias === "staff-neighbor") {
+		const a = staffPosTag(source);
+		const b = staffPosTag(other);
+		if (a !== null && b !== null) return -Math.abs(a - b);
 	}
 	return tagOverlapScore(source.tags ?? [], other.tags ?? []);
 }

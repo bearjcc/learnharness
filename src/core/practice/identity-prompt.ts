@@ -22,6 +22,9 @@ export function identityPromptFor(
 	const excludeGroup = flagGroupLevel(entry) ? entry.group : undefined;
 
 	if (kind === "image-pick") {
+		if (subject.subjectId === "drums" && entry.tags?.includes("drum-key")) {
+			return { prompt: `Which note is the ${entry.front}?`, explain, excludeGroup };
+		}
 		if (subject.subjectId === "flags" || entry.type === "visual") {
 			const name = flagGroupLevel(entry) ? (entry.groupLabel ?? entry.front) : entry.front;
 			const prompt = flagGroupLevel(entry)
@@ -33,6 +36,9 @@ export function identityPromptFor(
 	}
 
 	if (kind === "label-pick") {
+		if (subject.subjectId === "drums" && entry.tags?.includes("drum-key")) {
+			return { prompt: "Which drum is this?", explain, excludeGroup };
+		}
 		if (subject.subjectId === "flags") {
 			return { prompt: "Which flag is shown?", explain: "", excludeGroup };
 		}

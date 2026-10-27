@@ -37,7 +37,7 @@ export interface PracticeMediaVariantConfig {
 	/** Relative weights; omitted keys default to 1. */
 	weights?: Record<string, number>;
 	/** Optional distractor bias for visual entries. */
-	distractorBias?: "tags" | "similar-size" | "similar-shape";
+	distractorBias?: "tags" | "similar-size" | "similar-shape" | "staff-neighbor";
 }
 
 export type EntryField = "front" | "back" | "media";
@@ -122,6 +122,27 @@ export interface PracticeFsrsState {
 	last_review?: string;
 }
 
+/** When satisfied, `unlockLevel` becomes available for daily deals. */
+export interface PracticeLevelUnlockRule {
+	unlockLevel: number;
+	fromLevel: number;
+	stableFraction?: number;
+	minStabilityDays?: number;
+	minCorrectAnswers?: number;
+}
+
+export interface PracticeLevelsConfig {
+	rules?: PracticeLevelUnlockRule[];
+	/** Fraction of build slots that may sample the next locked level (0–1). */
+	previewNextLevelShare?: number;
+}
+
+/** Runtime progress (API only; not persisted on the subject row). */
+export interface PracticeSubjectProgress {
+	currentLevel: number;
+	unlockedLevels: number[];
+}
+
 export interface PracticeSubject {
 	subjectId: string;
 	title: string;
@@ -150,6 +171,8 @@ export interface PracticeSubject {
 	/** Built queue served to Choice (ISO date + items). */
 	dailyQueueDate?: string;
 	dailyQueue?: PracticeDailyItem[];
+	/** Prerequisite / unlock rules for `entry.level` (subject-agnostic). */
+	levels?: PracticeLevelsConfig;
 }
 
 export interface PracticeEntry {
@@ -179,6 +202,8 @@ export interface PracticeEntry {
 	identityScope?: "group" | "entry";
 	/** Optional sourced explanation shown after answer (never model-invented). */
 	explain?: string;
+	/** Curriculum level (default 1). Daily build respects subject unlock rules. */
+	level?: number;
 }
 
 export interface PracticeDailyItem {
@@ -227,6 +252,7 @@ export interface PracticeAnswerEvent {
 	event_id: string;
 	card_id: string;
 	subject: string;
+	entry_id?: string;
 	picked?: string;
 	correct?: boolean;
 	ms?: number;

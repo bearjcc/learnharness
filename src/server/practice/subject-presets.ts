@@ -58,11 +58,13 @@ export const PRACTICE_SUBJECT_PRESETS: PracticeSubject[] = [
 	},
 	{
 		subjectId: "drums",
-		title: "Drum grooves",
+		title: "Drum kit",
 		enabled: false,
 		dailyCards: 8,
-		itemKinds: ["groove-id"],
+		itemKinds: ["label-pick", "image-pick", "groove-id"],
+		mediaVariants: { enabled: ["drum-note"], weights: { "drum-note": 1 }, distractorBias: "staff-neighbor" },
 		sources: [
+			{ kind: "builtin", id: "drum-key-lib", builtinId: "drum-key", label: "Drum key" },
 			{ kind: "builtin", id: "grooves-lib", builtinId: "grooves", label: "Groove library" },
 			{
 				kind: "wikipedia",
@@ -70,6 +72,19 @@ export const PRACTICE_SUBJECT_PRESETS: PracticeSubject[] = [
 				pages: ["Drum kit", "Percussion notation"],
 			},
 		],
+		levels: {
+			previewNextLevelShare: 0.1,
+			rules: [
+				{
+					unlockLevel: 2,
+					fromLevel: 1,
+					stableFraction: 0.8,
+					minStabilityDays: 3,
+					minCorrectAnswers: 12,
+				},
+				{ unlockLevel: 3, fromLevel: 2, stableFraction: 0.6, minStabilityDays: 2 },
+			],
+		},
 		judgeModel: "koda",
 		requireReview: false,
 	},
@@ -131,6 +146,7 @@ export function mergeSubjectPresets(subjects: PracticeSubject[]): PracticeSubjec
 				mediaVariants: cur.mediaVariants ?? preset.mediaVariants,
 				itemKinds: cur.itemKinds.length ? cur.itemKinds : preset.itemKinds,
 				judgeModel: cur.judgeModel ?? preset.judgeModel,
+				levels: cur.levels ?? preset.levels,
 			});
 		}
 	}

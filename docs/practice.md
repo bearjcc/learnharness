@@ -152,4 +152,15 @@ Configure `sources` on a subject (see presets merged for `latin`, `geography`, `
 
 Preset **`flags`** (*Flags of the South Pacific*) uses Wikipedia plus Commons flag images (`mediaVariants.enabled: ["flag"]`). Import with `POST /api/entries/import-flags` (optional `{ "subjectId": "flags" }`).
 
+Preset **`drums`** teaches the kit in layers:
+
+1. **Drum key (level 1)** — fourteen single-note ABC cards under `samples/drum-key/` (PAS / Weinberg conventions; see that README for abcjs deviations). Import with `POST /api/entries/import-drum-key` (optional `{ "subjectId": "drums", "replace": true }`). Uses `label-pick` / `image-pick` with `mediaVariants.distractorBias: "staff-neighbor"`.
+2. **Grooves (levels 2–3)** — curated ABC under `samples/grooves/` (15 patterns; rock / four-on-the-floor / half-time are level 2, the rest level 3). Load with `POST /api/entries/import-grooves` (optional `{ "subjectId": "drums", "replace": true }`).
+
+**Levels (any subject):** set `entry.level` and optional `levels.rules` on the subject (unlock when enough level-*N* entries are FSRS-stable or after *M* correct answers on those entries). Daily build only deals unlocked levels; `previewNextLevelShare` (0–1) allows a small preview of the next level. `GET /api/practice/subjects` returns `practiceProgress: { currentLevel, unlockedLevels }` per subject.
+
+Identity items (image/label/term/meaning/groove-id) use **templated prompts**; entries must be **verified** (builtin, Commons, Wikipedia table row, etc.) before they enter the deck. Verification events are logged to `practice/sourced-build-log.jsonl` (`phase: "verify"`).
+
+To refresh stale citations after rule changes, call `POST /api/entries/reverify` with `{ "subjectId": "flags" }` (one-shot per subject).
+
 Pending imports on sourced subjects are **topic hints** (`topicOnly`); their `back` field is not used as an answer until sourced.
