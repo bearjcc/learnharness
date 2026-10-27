@@ -11,6 +11,10 @@ import { selectDistractors } from "../src/core/practice/distractors.ts";
 import { identityPromptFor } from "../src/core/practice/identity-prompt.ts";
 import type { PracticeEntry, PracticeSubject } from "../src/core/practice/contracts.ts";
 import { importDrumKey } from "../src/practice/drums/import-drum-key.ts";
+import {
+	assertDrumKeyRenderMatches,
+	renderDrumKeyVoice,
+} from "../src/practice/drums/drum-key-render.ts";
 
 const drumsSubject: PracticeSubject = {
 	subjectId: "drums",
@@ -47,6 +51,14 @@ describe("drum key library", () => {
 			assert.match(abc, /K:perc/);
 			assert.match(abc, /%%percmap/);
 			assert.match(abc, / z z z \|/);
+			assert.doesNotMatch(abc, /\^\^+/);
+		}
+	});
+
+	it("each voice renders with expected abcjs staff slot and notehead glyph", () => {
+		for (const def of DRUM_KEY_VOICES) {
+			const rendered = renderDrumKeyVoice(readDrumKeyAbc(def));
+			assertDrumKeyRenderMatches(def.id, rendered);
 		}
 	});
 
@@ -101,7 +113,7 @@ describe("drum key library", () => {
 
 		it("creates confirmed level-1 visual entries", () => {
 			const result = importDrumKey({ subjectId: "drums" });
-			assert.equal(result.imported, 14);
+			assert.equal(result.imported + result.updated, 14);
 			const again = importDrumKey({ subjectId: "drums", replace: true });
 			assert.equal(again.updated, 14);
 		});

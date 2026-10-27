@@ -38,7 +38,7 @@ export const DRUM_KEY_VOICES: DrumKeyVoiceDef[] = [
 		aliases: ["snare drum", "SN"],
 		group: "voice:snare",
 		staffPos: 5,
-		explain: "Snare drum on the middle line (C).",
+		explain: "Snare drum on the third space (C5).",
 		citation: {
 			url: "https://en.wikipedia.org/wiki/Drum_kit",
 			quote: "The snare drum is usually placed on the middle line of the percussion staff.",
@@ -52,7 +52,7 @@ export const DRUM_KEY_VOICES: DrumKeyVoiceDef[] = [
 		group: "voice:closed-hihat",
 		staffPos: 9,
 		explain: "Closed hi-hat with an x notehead above the staff.",
-		notationNote: "Rendered as x on G above the staff; PAS often uses × on the top space.",
+		notationNote: "Use ^g (not ^^g) so %%percmap matches abcjs pitchesToPerc; x on G5.",
 		citation: {
 			url: "https://en.wikipedia.org/wiki/Percussion_notation",
 			quote: "Hi-hat cymbals are often notated with x-shaped noteheads.",
