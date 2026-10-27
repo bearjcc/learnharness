@@ -72,10 +72,10 @@ export const CURATED_GROOVE_LIBRARY: CuratedGrooveDef[] = [
 		name: "Reggae one drop",
 		aliases: ["one drop"],
 		group: "groove:reggae-one-drop",
-		explain: "Kick and rim emphasis on beat 1; snare often omitted or on 3.",
+		explain: "Kick and cross-stick together on beat 3 only; no accent on beat 1.",
 		citation: {
 			url: "https://en.wikipedia.org/wiki/One_drop_rhythm",
-			quote: "The one drop rhythm emphasizes beat 1 with the bass drum and de-emphasizes beat 3 on the snare.",
+			quote: "In the one drop, the emphasis is on the third beat of the bar, with the bass drum and rim or cross-stick often played together.",
 		},
 		abcFile: "reggae-one-drop.abc",
 	},

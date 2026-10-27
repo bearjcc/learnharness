@@ -7,6 +7,6 @@ K:perc
 %%percmap g 42 x
 %%score (1 2)
 V:1
-g2 g g2 g g2 g |
+g2 g g2 g g2 g g z g |
 V:2
-B z c B z c B z |
+B z c z B z c z B z c z |

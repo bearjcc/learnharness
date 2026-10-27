@@ -70,8 +70,8 @@ let worldCache: FeatureCollection | null = null;
 
 export function loadWorldFeatureCollection(): FeatureCollection {
 	if (worldCache) return worldCache;
-	const f50 = byIso(featuresFrom(countries50m as Topology));
-	const f10 = byIso(featuresFrom(countries10m as Topology));
+	const f50 = byIso(featuresFrom(countries50m as unknown as Topology));
+	const f10 = byIso(featuresFrom(countries10m as unknown as Topology));
 	for (const [iso, feat] of f10) {
 		if (!f50.has(iso)) f50.set(iso, feat);
 	}
