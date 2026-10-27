@@ -53,6 +53,12 @@ import {
 } from "../core/auth-keys.ts";
 import { authStore } from "../store/auth.ts";
 import { isSubscriptionProvider, subscriptionConnected } from "../agent/subscription-connections.ts";
+import {
+	LOCAL_INFERENCE_API_KEY_ENV,
+	LOCAL_INFERENCE_PROVIDER_ID,
+	localInferenceApiKeyGuard,
+} from "../core/local-inference.ts";
+import { localInferenceConfigured } from "../agent/local-inference.ts";
 
 // The once-per-process boot record — globalThis anchor (HMR re-imports the
 // module; the snapshot must not re-run and misread fill-gapped vars as real
@@ -74,8 +80,10 @@ function boot(): AuthBoot {
 
 /** Is `id` a WRITABLE key name — curated catalog or model-provider env
  *  var (provider-keys interlude: PUT/DELETE accept both). */
+const LOCAL_INFERENCE_AUTH_VARS = new Set([LOCAL_INFERENCE_API_KEY_ENV]);
+
 export function isWritableAuthKey(id: string): boolean {
-	return isKnownAuthKey(id) || isProviderEnvVar(id);
+	return isKnownAuthKey(id) || isProviderEnvVar(id) || LOCAL_INFERENCE_AUTH_VARS.has(id);
 }
 
 /** The settings page's provider dropdown: every pi-ai provider that takes
@@ -109,6 +117,7 @@ export function initAuthEnv(): void {
 		// an env-exported OPENAI_API_KEY with a file copy gets honest shadow
 		// semantics, exactly like the curated vars.
 		...AUTH_PROVIDER_KEYS.map((p) => p.envVar),
+		...LOCAL_INFERENCE_AUTH_VARS,
 	]);
 	if (envKeysIgnored()) {
 		// THE FRESH-USER SWITCH: delete every managed env var (re-run on
@@ -201,6 +210,7 @@ export function keyValue(id: string): string | undefined {
  * (gate by what would run). Providers absent from AUTH_PROVIDER_KEYS take
  * no key at all: nothing to gate, present by definition. */
 export function providerKeyPresent(provider: string): boolean {
+	if (provider === LOCAL_INFERENCE_PROVIDER_ID) return localInferenceConfigured();
 	if (isSubscriptionProvider(provider)) return subscriptionConnected(provider);
 	const info = AUTH_PROVIDER_KEYS.find((p) => p.id === provider);
 	return info ? keyValue(info.envVar) !== undefined : true;
@@ -213,7 +223,11 @@ export function providerKeyPresent(provider: string): boolean {
  * reports shadowedByEnv so the page can explain it).
  */
 export function saveKey(id: string, value: string): { ok: true; status: AuthKeyStatus } | { ok: false; error: string } {
-	const shape = isProviderEnvVar(id) ? genericProviderKeyGuard(id, value) : validateKeyShape(id, value);
+	const shape = LOCAL_INFERENCE_AUTH_VARS.has(id)
+		? localInferenceApiKeyGuard(id, value)
+		: isProviderEnvVar(id)
+			? genericProviderKeyGuard(id, value)
+			: validateKeyShape(id, value);
 	if (!shape.ok) return { ok: false, error: shape.error };
 	const trimmed = value.trim();
 	authStore.setAuthVar(id, trimmed);

@@ -17,6 +17,8 @@ import { chatGPTStream } from "./chatgpt-stream.ts";
 import type { ChatGPTDispatchLifecycle } from "./chatgpt-request-cycle.ts";
 import { nativeSubscriptionId, nativeSubscriptionModel } from "./subscription-bridge.ts";
 import { nativeSubscriptionStream } from "./subscription-stream.ts";
+import { LOCAL_INFERENCE_PROVIDER_ID } from "../core/local-inference.ts";
+import { ensureLocalInferenceProvider, localInferenceModel } from "./local-inference.ts";
 
 /** App identity is immutable and shared by Models and every native Agent.
  * Agent's default Pi attribution otherwise overrides the Models identity. */
@@ -63,6 +65,7 @@ export function piModels() {
 		collection = createModels({ identity: APP_IDENTITY });
 		for (const provider of builtinProviders()) collection.setProvider(provider);
 	}
+	ensureLocalInferenceProvider(collection);
 	return collection;
 }
 
@@ -101,7 +104,14 @@ function defaultThinkingLevel(model: Model<Api>): ThinkingLevel {
 export function piEngineForSpec(spec: ResolvedModelSpec, background: boolean | (() => boolean) = true, lifecycle?: ChatGPTDispatchLifecycle): PiEngine {
 	const models: Models = piModels();
 	const nativeId = nativeSubscriptionId(spec.provider);
-	const model = spec.provider === "chatgpt" ? chatGPTModel(spec.id) : nativeId ? nativeSubscriptionModel(spec.provider, spec.id) : models.getModel(spec.provider, spec.id);
+	const model =
+		spec.provider === "chatgpt"
+			? chatGPTModel(spec.id)
+			: spec.provider === LOCAL_INFERENCE_PROVIDER_ID
+				? localInferenceModel(models, spec.id)
+				: nativeId
+					? nativeSubscriptionModel(spec.provider, spec.id)
+					: models.getModel(spec.provider, spec.id);
 	if (!model) {
 		throw new Error(`${spec.provider} catalog has no model ${spec.id}`);
 	}

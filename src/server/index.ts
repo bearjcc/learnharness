@@ -33,6 +33,8 @@ export { effectivePromptSegments, allSegmentPaths, readPromptOverride } from "..
 // Importing this module runs the idempotent boot fill-gap — every consumer
 // keeps its plain process.env reads (that seam is the point).
 export * from "./keys.ts";
+import { installLocalInferenceReader } from "./local-inference.ts";
+installLocalInferenceReader();
 export * from "./search.ts";
 export { authStore } from "../store/auth.ts";
 export * from "./settings-body.ts";
@@ -43,5 +45,6 @@ export * from "./compaction.ts";
 export { runPiTurn, piTurnResponse, type PiTurnHandle, type PiTurnSpec } from "./pi/ui-stream.ts";
 export * from "./observability.ts";
 export * from "./model-catalog.ts";
+export * from "./local-inference.ts";
 export { subscriptionControlsResponse, subscriptionBrowserResponse } from "./web-subscription-http.ts";
 export { sessionCost } from "./pricing.ts";

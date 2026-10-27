@@ -29,6 +29,7 @@
 
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { AUTH_PROVIDER_KEYS } from "./auth-keys.ts";
+import { LOCAL_INFERENCE_LABEL, LOCAL_INFERENCE_PROVIDER_ID } from "./local-inference.ts";
 import type { ModelRole } from "../../config.ts";
 import type { ChatSettings } from "./contracts/chat.ts";
 import type { SearchEngineId } from "./search.ts";
@@ -156,6 +157,14 @@ export interface ProviderKeyMissing {
  * (the label prefix varies by provider). */
 const PROVIDER_KEY_MISSING_TAIL = "key is set — add one in Settings → Keys";
 export function providerKeyMissing(provider: string, slots: ModelSlotName[]): ProviderKeyMissing {
+	if (provider === LOCAL_INFERENCE_PROVIDER_ID) {
+		return {
+			error: `No ${LOCAL_INFERENCE_LABEL} server configured — set a base URL in Settings → Keys`,
+			code: PROVIDER_KEY_MISSING_CODE,
+			provider,
+			slots,
+		};
+	}
 	const label = AUTH_PROVIDER_KEYS.find((p) => p.id === provider)?.label ?? provider;
 	return {
 		error: `No ${label} ${PROVIDER_KEY_MISSING_TAIL}`,

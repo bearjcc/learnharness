@@ -17,7 +17,7 @@ npm install          # once
 
 npm run dev          # http://localhost:3000
 npm run build        # production build (standalone output)
-npm start            # serve the production build
+npm start            # serve the production build (see docs/web-server.md for bind address and Ollama)
 
 npm test             # the full suite (node:test via tsx; deterministic, no LLM, no network)
 npm run lint         # eslint — includes the import law (architecture §2)
