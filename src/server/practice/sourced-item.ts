@@ -86,7 +86,17 @@ export async function ensureSourcedEntryReady(
 	if (!subjectUsesSourcing(subject)) return entry;
 	if (entry.status === "confirmed" && entry.citation && entry.back.trim()) return entry;
 	if (!isTopicHintEntry(entry) && entry.status === "confirmed") return entry;
-	return verifyEntryIdentity(subject, entry, fetchImpl ?? fetch, opts);
+	const result = await verifyEntryIdentity(subject, entry, fetchImpl ?? fetch, opts);
+	if (!result.entry) {
+		appendSourcedBuildLog({
+			at: new Date().toISOString(),
+			subjectId: subject.subjectId,
+			entryId: entry.entryId,
+			reason: result.reason,
+			phase: "verify",
+		});
+	}
+	return result.entry;
 }
 
 export async function trySourcedFactPickItem(

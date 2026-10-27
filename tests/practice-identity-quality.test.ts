@@ -220,8 +220,8 @@ describe("practice identity and sourcing quality", () => {
 		practiceStore.writeSubjects([subject]);
 		practiceStore.writeEntries([entry]);
 		const out = await verifyEntryIdentity(subject, entry, fetch, { offline: true });
-		assert.equal(out?.status, "confirmed");
-		assert.ok(out?.citation?.quote.includes("Fiji"));
+		assert.equal(out.entry?.status, "confirmed");
+		assert.ok(out.entry?.citation?.quote.includes("Fiji"));
 	});
 
 	it("rock beat renders on one percussion staff", () => {

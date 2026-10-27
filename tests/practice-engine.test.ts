@@ -104,7 +104,7 @@ describe("mixed stack", () => {
 	});
 });
 
-const SEED_GROOVES = ["rock-beat", "half-time", "four-on-the-floor", "shuffle"] as const;
+const SEED_GROOVES = ["rock-beat", "half-time", "four-on-the-floor", "shuffle-triplet"] as const;
 const GROOVE_SAMPLES_DIR = path.join(process.cwd(), "samples", "grooves");
 
 describe("groove ABC notation", () => {

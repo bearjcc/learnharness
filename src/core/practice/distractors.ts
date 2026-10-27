@@ -47,6 +47,17 @@ function similarityScore(source: PracticeEntry, other: PracticeEntry, bias: Dist
 	return tagOverlapScore(source.tags ?? [], other.tags ?? []);
 }
 
+function entryLabels(entry: PracticeEntry): string[] {
+	return [entry.front, ...(entry.aliases ?? [])]
+		.map((s) => s.trim().toLowerCase())
+		.filter(Boolean);
+}
+
+function entriesShareLabel(a: PracticeEntry, b: PracticeEntry): boolean {
+	const labels = new Set(entryLabels(a));
+	return entryLabels(b).some((l) => labels.has(l));
+}
+
 export function selectDistractors(
 	source: PracticeEntry,
 	pool: readonly PracticeEntry[],
@@ -60,7 +71,8 @@ export function selectDistractors(
 			e.subjectId === source.subjectId &&
 			e.type === source.type &&
 			(!options.mediaVariant || entryHasMediaVariant(e, options.mediaVariant)) &&
-			(!options.excludeGroup || !e.group || e.group !== options.excludeGroup),
+			(!options.excludeGroup || !e.group || e.group !== options.excludeGroup) &&
+			!entriesShareLabel(source, e),
 	);
 	const scored = candidates
 		.map((e) => ({
