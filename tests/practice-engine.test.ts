@@ -192,7 +192,7 @@ describe("media variants", () => {
 		};
 		const check = imagePickKind.check(bad, source, buildCheckContext(entries));
 		assert.equal(check.ok, false);
-		assert.ok(check.errors.some((e) => e.includes("variant")));
+		assert.ok(check.errors.some((e) => e.includes("variant") || e.includes("media mismatch")));
 	});
 });
 

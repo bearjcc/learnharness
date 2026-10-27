@@ -1,10 +1,11 @@
 import type { ItemKindPlugin } from "./types.ts";
 import { baseItem, fourDistinct } from "./shared.ts";
-import type { PracticeEntry } from "../../core/practice/contracts.ts";
-import { assertConsistentMediaVariant } from "../../core/practice/media-variants.ts";
+import { facetForMedia } from "../../core/practice/facets.ts";
+import { buildTextPickOptions } from "./option-build.ts";
+import { finishTextPickCheck } from "./text-pick-check.ts";
 import { imageTokenForEntry, visualEntryHasImage } from "./visual-media.ts";
+import { validateItemFacets } from "../../core/practice/facets.ts";
 
-/** Reverse of image-pick: image prompt, four text labels. */
 export const labelPickKind: ItemKindPlugin = {
 	kind: "label-pick",
 	appliesTo: (e) => e.type === "visual" && visualEntryHasImage(e),
@@ -13,27 +14,42 @@ export const labelPickKind: ItemKindPlugin = {
 		properties: { explain: { type: "string" } },
 		additionalProperties: false,
 	},
-	buildModelPrompt(entry, options) {
+	buildModelPrompt(entry, options, hints) {
+		const inv =
+			hints?.inventedCount
+				? ` Invent ${hints.inventedCount} wrong country/labels in the same language as the correct label.`
+				: "";
 		return {
-			system: "Optional one-line hint only.",
+			system: `Optional one-line hint only.${inv}`,
 			user: `Image shows: ${entry.front}. Labels: ${[entry.front, ...options.map((o) => o.front)].join(" | ")}`,
 		};
 	},
 	assemble(entry, optionEntries, model, ctx) {
 		const mediaVariant = ctx?.mediaVariant;
+		const subject = ctx?.subject;
 		if (!mediaVariant) return null;
 		const token = imageTokenForEntry(entry, mediaVariant);
 		if (!token) return null;
-		const all = [entry, ...optionEntries];
-		if (!fourDistinct(all)) return null;
-		const shuffled = [...all].sort((a, b) => a.entryId.localeCompare(b.entryId));
-		const options = shuffled.map((e) => ({ id: e.entryId, type: "text" as const, text: e.front }));
+		const invented = ctx?.inventedDistractors ?? model?.inventedDistractors ?? [];
+		if (invented.length === 0) {
+			const all = [entry, ...optionEntries];
+			if (!fourDistinct(all)) return null;
+		}
+		const options = buildTextPickOptions(
+			"label-pick",
+			entry,
+			optionEntries,
+			invented,
+			subject,
+			ctx?.shuffleSeed,
+		);
+		if (!options) return null;
 		return baseItem(
 			"label-pick",
 			entry,
-			shuffled,
+			optionEntries,
 			entry.entryId,
-			[{ type: "image", token }],
+			[{ type: "image", token, facet: facetForMedia(mediaVariant) }],
 			options,
 			model?.explain,
 			mediaVariant,
@@ -47,14 +63,13 @@ export const labelPickKind: ItemKindPlugin = {
 		const variant = item.mediaVariant;
 		const img = item.prompt.find((p) => p.type === "image");
 		if (!img || !ctx.mediaFileExists(img.token)) errors.push("prompt image missing");
-		if (variant) {
-			const expected = imageTokenForEntry(source, variant);
-			if (expected && img && img.token !== expected) errors.push("prompt image variant mismatch");
-		}
-		for (const opt of item.options) {
-			if (opt.type !== "text" || !ctx.entriesById.has(opt.id)) errors.push("bad text option");
-		}
-		errors.push(...assertConsistentMediaVariant(item, ctx));
+		if (variant && img?.facet?.mediaVariant !== variant) errors.push("prompt image variant mismatch");
+		const correct = item.options.find((o) => o.id === source.entryId);
+		if (!correct || correct.source === "invented") errors.push("correct must be entry-sourced");
+		errors.push(...validateItemFacets(item, ctx.subject, ctx.entriesById));
 		return { ok: errors.length === 0, errors };
+	},
+	async checkAsync(item, source, ctx, assembleCtx) {
+		return finishTextPickCheck(item, source, ctx, assembleCtx, this.check(item, source, ctx).errors);
 	},
 };
