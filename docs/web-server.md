@@ -15,14 +15,12 @@ Serve on the default port (3000):
 npm start
 ```
 
-Bind to all interfaces on a chosen port (reachable on your LAN):
+Use another port (default hostname is `0.0.0.0`):
 
 ```bash
-# Linux / macOS
-HOSTNAME=0.0.0.0 PORT=8080 npm start
-
-# Windows (PowerShell)
-$env:HOSTNAME="0.0.0.0"; $env:PORT="8080"; npm run start
+PORT=8080 npm start
+# or
+npx next start -p 8080
 ```
 
 The standalone output used by the desktop app is built by `npm run build`; `npm start` runs `next start` against that build.
