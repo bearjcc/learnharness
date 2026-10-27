@@ -75,11 +75,27 @@ export function normalizeLocalInferenceBaseUrl(raw: string): string | null {
 	}
 }
 
-/** Derive the Ollama native API root (without /v1) for /api/tags. */
-export function ollamaTagsUrl(openAiV1Base: string): string {
+/** Strip `/v1` from an OpenAI-compatible base URL. */
+export function ollamaApiRoot(openAiV1Base: string): string {
 	const url = new URL(openAiV1Base);
 	const path = url.pathname.replace(TRAILING_SLASH, "").replace(/\/v1$/, "") || "";
-	url.pathname = `${path}/api/tags`;
+	url.pathname = path || "/";
+	url.search = "";
+	url.hash = "";
+	return url.toString().replace(TRAILING_SLASH, "");
+}
+
+/** Derive the Ollama native API root (without /v1) for /api/tags. */
+export function ollamaTagsUrl(openAiV1Base: string): string {
+	const url = new URL(ollamaApiRoot(openAiV1Base));
+	url.pathname = `${url.pathname.replace(TRAILING_SLASH, "")}/api/tags`;
+	return url.toString();
+}
+
+/** Ollama native chat endpoint (supports `think` + `format` JSON schema). */
+export function ollamaChatUrl(openAiV1Base: string): string {
+	const url = new URL(ollamaApiRoot(openAiV1Base));
+	url.pathname = `${url.pathname.replace(TRAILING_SLASH, "")}/api/chat`;
 	return url.toString();
 }
 

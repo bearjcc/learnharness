@@ -120,6 +120,13 @@ describe("groove ABC notation", () => {
 			assert.doesNotMatch(svg, /scripts\.segno|abcjs-title/i);
 			assert.match(svg, /fill="#ffffff"/);
 			assert.match(svg, /fill="#111111"/);
+			assert.match(svg, /data-name="g"/);
+			const height = Number(svg.match(/height="(\d+)"/)?.[1] ?? 0);
+			assert.ok(height >= 70, `expected uncropped single-staff height, got ${height}`);
+			if (name === "rock-beat") {
+				assert.match(svg, /data-name="B"/);
+				assert.match(svg, /data-name="c"/);
+			}
 		});
 	}
 
