@@ -21,6 +21,9 @@ import { clampThinkingLevel, getSupportedThinkingLevels, type Api, type Model } 
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { piModels } from "../agent/models.ts";
 import { chatGPTConnected, chatGPTModel, chatGPTModels, refreshChatGPTModels } from "../agent/chatgpt-bridge.ts";
+import { LOCAL_INFERENCE_BASE_URL_ENV, LOCAL_INFERENCE_PROVIDER_ID } from "../core/local-inference.ts";
+import { localInferenceConfigured } from "../agent/local-inference.ts";
+import { refreshLocalInferenceCatalog } from "./local-inference.ts";
 import { NATIVE_SUBSCRIPTIONS } from "../core/contracts/subscriptions.ts";
 import { nativeSubscriptionId, nativeSubscriptionConnected, nativeSubscriptionModel, nativeSubscriptionModels, refreshSubscriptionModels } from "../agent/subscription-bridge.ts";
 
@@ -28,12 +31,25 @@ export async function refreshConnectionCatalog(provider?: string): Promise<void>
 	await Promise.all([
 		!provider || provider === "chatgpt" ? refreshChatGPTModels(piModels().getModels("openai").filter((m): m is Model<"openai-responses"> => m.api === "openai-responses")) : Promise.resolve(),
 		!provider || nativeSubscriptionId(provider) ? refreshSubscriptionModels() : Promise.resolve(),
+		!provider || provider === LOCAL_INFERENCE_PROVIDER_ID ? refreshLocalInferenceCatalog() : Promise.resolve(),
 	]);
 }
 function connectionModel(provider: string, id: string): Model<Api> | undefined {
-	return provider === "chatgpt" ? chatGPTModel(id) : nativeSubscriptionId(provider) ? nativeSubscriptionModel(provider, id) : piModels().getModel(provider, id);
+	return provider === "chatgpt"
+		? chatGPTModel(id)
+		: provider === LOCAL_INFERENCE_PROVIDER_ID
+			? piModels().getModel(provider, id)
+			: nativeSubscriptionId(provider)
+				? nativeSubscriptionModel(provider, id)
+				: piModels().getModel(provider, id);
 }
-function connectionProviderIds(): string[] { return [...piModels().getProviders().map((p) => p.id), "chatgpt", ...NATIVE_SUBSCRIPTIONS.map((p) => p.logicalId)]; }
+function connectionProviderIds(): string[] {
+	return [
+		...piModels().getProviders().map((p) => p.id),
+		"chatgpt",
+		...NATIVE_SUBSCRIPTIONS.map((p) => p.logicalId),
+	];
+}
 import { settingsStore } from "../store/settings.ts";
 import { effectiveSettings } from "./stores.ts";
 import { keyValue } from "./keys.ts";
@@ -142,6 +158,11 @@ export function catalogProviders(): CatalogProvider[] {
 	})).concat([
 		{ id: "chatgpt", envVar: "", keyPresent: chatGPTConnected() },
 		...NATIVE_SUBSCRIPTIONS.map((p) => ({ id: p.logicalId, envVar: "", keyPresent: nativeSubscriptionConnected(p.providerId) })),
+		{
+			id: LOCAL_INFERENCE_PROVIDER_ID,
+			envVar: LOCAL_INFERENCE_BASE_URL_ENV,
+			keyPresent: localInferenceConfigured(),
+		},
 	]).sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -188,7 +209,14 @@ export function catalogContextLimits(): Map<string, number> {
 			index.set(`${provider.id}:${model.id}`, model.contextWindow);
 		}
 	}
-	for (const model of [...chatGPTModels(), ...nativeSubscriptionModels()]) index.set(`${model.provider}:${model.id}`, model.contextWindow);
+	for (const model of [...chatGPTModels(), ...nativeSubscriptionModels()]) {
+		index.set(`${model.provider}:${model.id}`, model.contextWindow);
+	}
+	if (localInferenceConfigured()) {
+		for (const model of piModels().getModels(LOCAL_INFERENCE_PROVIDER_ID)) {
+			index.set(`${model.provider}:${model.id}`, model.contextWindow);
+		}
+	}
 	return index;
 }
 
